@@ -10,6 +10,33 @@
 - **Drives**: 14TB IronWolf Pro + backup HDD
 - **Connection**: USB 3.2 external dock
 - **Concern**: Data corruption protection
+- **Future**: May move to Linux/Windows
+
+---
+
+## Recommended Solution: APFS (Primary) + NTFS (Backup) + restic
+
+**Best approach for your setup:**
+
+**Primary NAS Drive (IronWolf Pro 14TB):**
+- Format: **APFS (Encrypted)**
+- Why: Native macOS, best performance, hardware encryption, CoW protection
+
+**Backup Drive:**
+- Format: **NTFS** (via Paragon NTFS driver)
+- Why: Cross-platform (works on Mac, Windows, Linux), future-proof
+
+**Backup Tool:**
+- Use: **restic**
+- Why: Handles encryption + integrity checking + versioning regardless of filesystem
+- Benefits: Content-addressed, deduplicated, checksummed, cross-platform
+
+**This gives you:**
+- ✅ Best macOS performance (APFS primary)
+- ✅ Cross-platform backup (NTFS works everywhere)
+- ✅ Data integrity (restic checksums, not filesystem-dependent)
+- ✅ Encryption (restic built-in, works on any filesystem)
+- ✅ Future-proof (move to Linux/Windows later, restic works identically)
 
 ---
 
@@ -155,14 +182,24 @@
 
 ## Recommendation for Your Setup
 
-### **Use APFS (encrypted)**
+### **Primary Drive: APFS (encrypted)**
 
-Best choice because:
+Format IronWolf Pro 14TB as APFS (Encrypted) because:
 - **Data integrity**: CoW + checksumming protects against corruption
 - **Optimized for M1**: Hardware-accelerated, native support
 - **Large files**: Handles 50GB+ efficiently, space-efficient clones
-- **Features**: Time Machine, encryption, snapshots, Finder integration
-- **Simple**: Works out of box, no third-party software
+- **Features**: Time Machine, snapshots, Finder integration
+- **Performance**: Best for macOS, no driver overhead
+
+### **Backup Drive: NTFS + restic**
+
+Format backup HDD as NTFS and use restic because:
+- **Cross-platform**: Works on macOS (Paragon), Windows (native), Linux (native)
+- **Future-proof**: Move to any OS later, restic works identically
+- **Integrity**: restic handles checksumming (not filesystem-dependent)
+- **Encryption**: restic built-in AES-256 (works on any filesystem)
+- **Versioning**: Snapshots, deduplication, corruption recovery
+- **Flexibility**: Filesystem becomes irrelevant when restic handles everything
 
 ---
 
@@ -365,29 +402,39 @@ Cloud options for large files:
 
 ### For Your Setup (M1 Mac, External Drives, Large Media)
 
-1. **Format**: APFS (Encrypted)
-   - Best balance of protection and practicality
-   - Native macOS support
-   - Good data integrity
-   - Handles 50GB+ files well
+1. **Primary Drive Format**: APFS (Encrypted)
+   - Best macOS performance and native support
+   - Hardware-accelerated encryption on M1
+   - Copy-on-Write + checksumming for data integrity
+   - Handles 50GB+ files efficiently
 
-2. **Backup Strategy**:
+2. **Backup Drive Format**: NTFS (via Paragon)
+   - Cross-platform compatibility (Mac, Windows, Linux)
+   - Future-proof for potential OS migration
+   - Works with Paragon NTFS driver on macOS
+
+3. **Backup Tool**: restic
+   - Encrypted, checksummed, versioned snapshots
+   - Content-addressed deduplication (space-efficient)
+   - Filesystem-agnostic (works on NTFS, APFS, ext4, anything)
+   - Cross-platform (identical operation on any OS)
+   - Corruption detection and recovery via snapshots
+
+4. **Backup Strategy**:
    - Primary: IronWolf Pro 14TB (APFS encrypted)
-   - Backup: Regular HDD (APFS encrypted)
-   - Automated rsync daily
+   - Backup: Regular HDD (NTFS + restic repository)
+   - Automated daily backups (restic)
+   - Keep 30 daily + 12 monthly snapshots
+   - Monthly integrity verification (restic check)
    - Cloud backup for critical files (optional)
 
-3. **Monitoring**:
-   - SMART checks weekly
-   - Checksum verification monthly
+5. **Monitoring**:
+   - SMART checks weekly (drive health)
+   - restic check monthly (backup integrity)
    - Watch for drive temperature/errors
+   - Test restores quarterly
 
-4. **Future Migration**:
-   - When you need more capacity/redundancy
-   - Consider dedicated NAS with ZFS (TrueNAS)
-   - 4+ drives in RAID-Z for true self-healing
-
-**Bottom line**: APFS is the right choice. ZFS benefits require RAID. Start simple, upgrade later if needed.
+**Bottom line**: APFS for primary (best macOS performance) + NTFS for backup (cross-platform) + restic (handles all integrity/encryption). This gives you best performance now with maximum flexibility for the future.
 
 ---
 

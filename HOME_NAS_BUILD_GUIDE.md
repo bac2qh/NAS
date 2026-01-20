@@ -93,9 +93,25 @@ sudo smartctl -a /dev/disk2
 - No data integrity features
 - See FILE_SYSTEM_GUIDE.md for details
 
-### Format Backup Drive
+### Format Backup Drive (NTFS for Cross-Platform)
 
-Repeat above steps for backup HDD with name `NAS_Backup`
+**Backup drive uses NTFS for maximum compatibility:**
+- Works on macOS (via Paragon NTFS)
+- Native on Windows
+- Native on Linux
+- restic handles encryption + integrity (filesystem-agnostic)
+
+**Format as NTFS:**
+1. Open **Disk Utility**
+2. Select backup HDD
+3. Click **Erase**:
+   - **Name**: `NAS_Backup`
+   - **Format**: `ExFAT` (Disk Utility doesn't support NTFS)
+   - **Scheme**: `GUID Partition Map`
+4. After formatting to ExFAT, use Paragon NTFS to reformat to NTFS if needed
+5. Or keep ExFAT and let restic handle everything
+
+**Note**: Filesystem doesn't matter much since restic provides encryption and integrity checking regardless of underlying format.
 
 ### Create Folder Structure
 
@@ -141,10 +157,27 @@ chmod -R 700 Backups  # Backups are private
 
 ### Configure Static IP (Optional but Recommended)
 
-1. **System Settings** → **Network** → **Wi-Fi/Ethernet** → **Details**
-2. Go to **TCP/IP** tab
-3. Configure IPv4: **Using DHCP with manual address**
-4. Set a static IP (e.g., `192.168.1.100`)
+**Best approach**: Reserve IP in your router's DHCP settings instead of manual configuration.
+
+**Method 1: DHCP Reservation (Recommended)**
+1. Note your Mac's current IP: System Settings → Network → Details → TCP/IP
+2. Log into router admin (usually http://192.168.1.1)
+3. Find "DHCP Reservation" or "Static Lease"
+4. Add: Mac's MAC address → desired IP (e.g., 192.168.1.100)
+5. Mac keeps same IP automatically, no manual config needed
+
+**Method 2: Manual Configuration (Advanced)**
+1. System Settings → Network → Wi-Fi/Ethernet → Details
+2. TCP/IP tab → Configure IPv4: **Using DHCP**
+3. Note current Router address and DNS servers
+4. Change to: **Using DHCP with manual address**
+5. IPv4 Address: `192.168.1.100` (pick unused IP in your subnet)
+6. **Important**: DNS tab → Add DNS servers:
+   - Your router's IP (e.g., `192.168.1.1`)
+   - Google DNS: `8.8.8.8` (backup)
+7. Click OK and test internet connectivity
+
+**⚠️ If internet stops working**: Switch back to "Using DHCP" and use Method 1 instead.
 
 ### Access from Other Devices
 
@@ -162,25 +195,31 @@ sudo mount -t cifs //192.168.1.100/Media /mnt/nas -o user=nasuser
 
 ---
 
-## Time Machine Configuration
+## Time Machine Configuration (Optional)
 
-### Setup Time Machine on Primary Drive
+**Note**: Time Machine is for the **NAS Mac itself**, not for backing up the NAS drive (that's handled by restic).
+
+### Local Time Machine Backup
+
+Use NAS_Primary to back up your Mac's internal system drive:
 
 1. **System Settings** → **General** → **Time Machine**
 2. Click **+** to add backup disk
-3. Select `/Volumes/NAS_Primary/Backups/TimeMachine`
-4. Set backup frequency (automatic hourly backups)
+3. Select a folder on `/Volumes/NAS_1/` (create MacBackup folder)
+4. Time Machine backs up Mac system, applications, documents
 
-### Enable Time Machine Network Sharing (for other Macs)
+**This is separate from your NAS data backup (which uses restic).**
 
-1. **System Settings** → **General** → **Sharing** → **File Sharing**
-2. Add `/Volumes/NAS_Primary/Backups/TimeMachine` to shared folders
-3. Right-click the folder → **Advanced Options**
-4. Check **Share as Time Machine backup destination**
+### Time Machine for Other Macs (Network Backup)
 
-**Connect from other Macs**:
-1. System Settings → Time Machine → Add disk
-2. Select your MacBook Pro from network list
+Share NAS as Time Machine destination for other Macs on your network:
+
+1. Create folder: `mkdir -p /Volumes/NAS_1/TimeMachine`
+2. **System Settings** → **Sharing** → **File Sharing**
+3. Add `/Volumes/NAS_1/TimeMachine` to shared folders
+4. Right-click → **Advanced Options** → **Share as Time Machine backup destination**
+
+**Other Macs can now use your NAS for Time Machine backups over the network.**
 
 ---
 
@@ -325,79 +364,310 @@ ssh your-username@100.x.x.x
 
 ## Backup Strategy
 
+### Why restic?
+
+**Your backup drive is NTFS** (cross-platform compatibility), which means:
+- ❌ Can't use Time Machine (requires APFS/HFS+)
+- ❌ Can't use APFS checksumming
+- ✅ Use restic for encryption + integrity checking + versioned backups
+
+**restic advantages:**
+- Content-addressed chunking (deduplicated, space-efficient)
+- Built-in encryption (AES-256)
+- Checksummed data (corruption detection)
+- Versioned snapshots (point-in-time recovery)
+- Cross-platform (works on macOS, Linux, Windows)
+- Filesystem-agnostic (NTFS, APFS, ext4, anything)
+
 ### 3-2-1 Backup Rule
 
-Your current setup:
-- **3 copies**: Original data + Time Machine + manual backup to second HDD
-- **2 different media**: IronWolf Pro + regular HDD
-- **1 offsite**: Consider adding cloud backup for critical data
+Your setup:
+- **3 copies**: Original data + restic snapshots + cloud (critical files)
+- **2 different media**: IronWolf Pro + backup HDD
+- **1 offsite**: Cloud backup for important files
 
-### Automated Backup Script
+### Initial Setup
 
-Use the provided script at `scripts/backup_to_second_drive.sh`
-
-**Schedule it**:
+**1. Install restic:**
 ```bash
-chmod +x scripts/backup_to_second_drive.sh
-
-# Add to crontab (run daily at 2 AM)
-crontab -e
-# Add: 0 2 * * * /Users/your-username/Work/personal/NAS/scripts/backup_to_second_drive.sh
+brew install restic
 ```
 
-### Alternative: Carbon Copy Cloner (GUI)
+**2. Initialize encrypted repository:**
+```bash
+# Create restic repo on backup drive:
+restic init -r /Volumes/NAS_Backup/restic-repo
+
+# Set a strong password when prompted
+# Store in password manager!
+
+# Or save password to file (secure permissions):
+echo "your-strong-password" > ~/.restic-password
+chmod 600 ~/.restic-password
+```
+
+**3. Create backup script:**
+
+Use the provided script at `scripts/restic_backup.sh`
+
+**4. Test backup:**
+```bash
+chmod +x scripts/restic_backup.sh
+./scripts/restic_backup.sh
+```
+
+### Backup Frequency
+
+**Recommended: Weekly manual backups (unplug drive between backups)**
+
+Why weekly + unplugged:
+- ✅ WD Elements 16TB is consumer drive (not NAS-rated, not designed for 24/7)
+- ✅ Protects from simultaneous failure (power surge, ransomware)
+- ✅ True offline backup (air-gapped security)
+- ✅ Extends backup drive life (10x longer)
+- ✅ Weekly cadence sufficient for media files (photos/videos don't change daily)
+
+**Manual weekly workflow:**
+```bash
+# Every Sunday (or your schedule):
+# 1. Plug in WD Elements backup drive
+# 2. Wait for /Volumes/NAS_Backup to mount
+# 3. Run backup:
+cd ~/Work/personal/NAS
+./scripts/restic_backup.sh
+
+# 4. Verify completed:
+tail ~/Library/Logs/restic_backup.log
+
+# 5. Safely eject:
+diskutil eject /Volumes/NAS_Backup
+
+# 6. Unplug and store in safe location (separate room from primary NAS)
+```
+
+### Optional: Automated Daily Backups (Keep Drive Plugged In)
+
+**Only if you upgrade to NAS-rated backup drive** (IronWolf, WD Red, etc.)
+
+**Daily backups with launchd:**
+```bash
+# Create plist file:
+cat > ~/Library/LaunchAgents/com.user.restic-backup.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.restic-backup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/YOUR_USERNAME/Work/personal/NAS/scripts/restic_backup.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardErrorPath</key>
+    <string>/tmp/restic-backup.err</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/restic-backup.out</string>
+</dict>
+</plist>
+EOF
+
+# Replace YOUR_USERNAME:
+sed -i '' "s/YOUR_USERNAME/$(whoami)/g" ~/Library/LaunchAgents/com.user.restic-backup.plist
+
+# Load:
+launchctl load ~/Library/LaunchAgents/com.user.restic-backup.plist
+```
+
+### Common restic Commands
 
 ```bash
-brew install --cask carbon-copy-cloner
+# Manual backup:
+restic -r /Volumes/NAS_Backup/restic-repo backup /Volumes/NAS_1/
+
+# List snapshots:
+restic -r /Volumes/NAS_Backup/restic-repo snapshots
+
+# Check repository integrity:
+restic -r /Volumes/NAS_Backup/restic-repo check
+
+# Restore from latest snapshot:
+restic -r /Volumes/NAS_Backup/restic-repo restore latest --target /tmp/restore
+
+# Restore specific file:
+restic -r /Volumes/NAS_Backup/restic-repo restore latest \
+  --target /tmp/restore --path /Photos/important.jpg
+
+# View what changed:
+restic -r /Volumes/NAS_Backup/restic-repo diff <snapshot-1> <snapshot-2>
+
+# Prune old snapshots (keep last 30 daily, 12 monthly):
+restic -r /Volumes/NAS_Backup/restic-repo forget \
+  --keep-daily 30 --keep-monthly 12 --prune
+```
+
+### Monthly Maintenance
+
+```bash
+# Verify backup integrity:
+restic -r /Volumes/NAS_Backup/restic-repo check --read-data
+
+# Prune old snapshots:
+restic -r /Volumes/NAS_Backup/restic-repo forget \
+  --keep-daily 30 --keep-monthly 12 --prune
+
+# Check repository stats:
+restic -r /Volumes/NAS_Backup/restic-repo stats
 ```
 
 ### Cloud Backup (Optional)
 
-For critical data: **Backblaze B2** ($6/TB/month), **iCloud Drive**, or **rclone** (`brew install rclone`)
+For critical files, use restic with cloud backend:
+```bash
+# Backblaze B2:
+export B2_ACCOUNT_ID=your-account-id
+export B2_ACCOUNT_KEY=your-account-key
+restic init -r b2:your-bucket-name:restic-repo
+
+# AWS S3:
+export AWS_ACCESS_KEY_ID=your-key
+export AWS_SECRET_ACCESS_KEY=your-secret
+restic init -r s3:s3.amazonaws.com/your-bucket/restic-repo
+```
 
 ---
 
 ## Power Management
 
-### Keep MacBook Awake (Important!)
+### Recommended Settings for 8/5 Usage Pattern
 
-Since your Mac is dual-purpose, configure smart sleep settings:
+**Your usage:** Mac runs ~8 hours/day, 5 days/week (not 24/7)
 
-**Install Amphetamine (Recommended)**:
+**IronWolf Pro 14TB:** Can stay connected to dock at all times
+- ✅ NAS-rated for 24/7 operation
+- ✅ Fewer power cycles = longer drive life
+- ✅ Designed for always-on use
+
+**Conservative approach:** Let drives sleep when idle
+
+### Configure Power Settings
+
+**Quick setup (recommended):**
 ```bash
-# Free app from Mac App Store
+# Run the provided setup script:
+./scripts/setup_power_settings.sh
+```
+
+**Or configure manually:**
+
+**When plugged in (AC power) - NAS mode:**
+```bash
+# Mac never sleeps (important for file serving):
+sudo pmset -c sleep 0
+
+# Drives sleep after 10 minutes of inactivity:
+sudo pmset -c disksleep 10
+
+# Display can sleep (saves power):
+sudo pmset -c displaysleep 10
+
+# Disable Power Nap (can cause slowdowns):
+sudo pmset -c powernap 0
+
+# Disable auto power off:
+sudo pmset -c autopoweroff 0
+```
+
+**When on battery - Laptop mode:**
+```bash
+# Mac sleeps after 15 minutes:
+sudo pmset -b sleep 15
+
+# Drives sleep quickly:
+sudo pmset -b disksleep 5
+
+# Display sleeps quickly:
+sudo pmset -b displaysleep 5
+
+# Enable Power Nap:
+sudo pmset -b powernap 1
+```
+
+**Verify settings:**
+```bash
+pmset -g
+# Check output shows correct values for -c (charger) and -b (battery)
+```
+
+### What This Does
+
+**Daily workflow (8/5 usage):**
+```
+9am: Power on Mac
+  → Drive spins up (10 seconds)
+  → NAS ready
+
+9am-6pm: Working
+  → Drive stays active while in use
+  → If idle 10+ minutes, drive spins down
+  → Wakes instantly when accessed
+
+6pm: Power off Mac
+  → Drive spins down gracefully
+  → Safe to leave connected
+
+Overnight/Weekends:
+  → Mac off, drive powered but not spinning
+  → Ready for next power-on
+```
+
+**Power cycles:** ~2 per day (well within IronWolf Pro specs)
+
+### Physical Setup
+
+**IronWolf Pro 14TB (Primary NAS):**
+- ✅ Keep in dock permanently
+- ✅ Keep USB connected to Mac
+- ✅ Keep dock powered on
+- ✅ Don't need to unplug daily
+
+**WD Elements 16TB (Backup):**
+- ❌ Don't leave connected 24/7
+- ✅ Plug in weekly for backups
+- ✅ Unplug after backup completes
+- ✅ Store in safe location (separate from primary)
+
+### Optional: Amphetamine for Fine Control
+
+If you want more control over sleep behavior:
+
+```bash
+# Install from Mac App Store:
 open "https://apps.apple.com/us/app/amphetamine/id937984704"
 ```
 
-Configure Amphetamine:
-- Create trigger: "Keep awake while drive is connected"
-- Conditions: When `/Volumes/NAS_Primary` is mounted
+**Configure trigger:**
+- "Keep Mac awake when NAS_1 is mounted"
+- Allows Mac to sleep when drives unmounted (traveling)
 
-**Or use command-line tool**:
-```bash
-# Prevent sleep while plugged in
-sudo pmset -c sleep 0
-sudo pmset -c disksleep 0
+### UPS Recommendation (Optional)
 
-# Allow display to sleep but keep system awake
-sudo pmset -c displaysleep 10
+For data protection during power outages:
+- **APC Back-UPS 600VA** (~$70) - Basic protection
+- **CyberPower CP1500PFCLCD** (~$200) - Pure sine wave, better for sensitive electronics
 
-# Check current settings
-pmset -g
-```
-
-### Prevent Drive Ejection
-
-```bash
-# Disable automatic drive sleep
-sudo pmset -a disksleep 0
-```
-
-### UPS Recommendation
-
-For data protection during power outages, consider:
-- **APC Back-UPS 600VA** (~$70)
-- **CyberPower CP1500PFCLCD** (~$200, pure sine wave)
+**Benefits:**
+- Protects from sudden power loss during writes
+- Allows graceful shutdown
+- Prevents corruption from unexpected shutdowns
 
 ---
 
@@ -788,21 +1058,35 @@ When booting your Mac, ensure services start in this order:
 ### Monthly Maintenance Checklist
 
 ```bash
-# 1. Verify VPN configuration hasn't changed
-# Check NordVPN split tunneling rules still include local networks
+# 1. Verify backup integrity
+./scripts/restic_verify.sh
+# Or manually:
+# restic -r /Volumes/NAS_Backup/restic-repo check --read-data
 
-# 2. Test remote access
+# 2. Check drive health
+sudo ./scripts/check_drive_health.sh
+
+# 3. Review backup logs
+tail -100 ~/Library/Logs/restic_backup.log
+tail -100 ~/Library/Logs/restic_verify.log
+
+# 4. Test remote access
 # From phone/remote device, connect via Tailscale and access NAS
 
-# 3. Check for updates
-brew update
-brew upgrade --cask nordvpn tailscale plex
+# 5. Verify VPN configuration
+# Check NordVPN settings still allow Tailscale traffic
 
-# 4. Review Tailscale audit log
+# 6. Check for updates
+brew update
+brew upgrade restic
+brew upgrade --cask nordvpn tailscale plex paragon-ntfs
+
+# 7. Review Tailscale audit log
 # Visit https://login.tailscale.com/admin/machines
 
-# 5. Check firewall logs (if suspicious activity)
-log show --predicate 'eventMessage contains "firewall"' --info --last 7d
+# 8. Test file restore (quarterly)
+# restic -r /Volumes/NAS_Backup/restic-repo restore latest \
+#   --target /tmp/test-restore --path /some/test/file.mov
 ```
 
 ---
