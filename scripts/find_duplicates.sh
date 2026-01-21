@@ -8,7 +8,7 @@
 
 SCAN_DIR="/Volumes/NAS_1"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_DIR="/Volumes/NAS_1/duplicate_reports"
+OUTPUT_DIR="$HOME/Documents/NAS_duplicate_reports"
 RDFIND_OUTPUT="$OUTPUT_DIR/rdfind_raw_${TIMESTAMP}.txt"
 REPORT_FILE="$OUTPUT_DIR/duplicates_report_${TIMESTAMP}.txt"
 
@@ -19,7 +19,6 @@ mkdir -p "$OUTPUT_DIR"
 EXCLUDE_PATTERNS=(
     "Torrents"
     "Duplicates"
-    "duplicate_reports"
     "Immich/thumbs"
     "Immich/encoded-video"
     ".Trashes"
