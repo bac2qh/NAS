@@ -520,20 +520,183 @@ immich.local {
 # Enable MagicDNS
 ```
 
-### Multiple Users
+### Multiple Users (Family Photo Backup)
+
+**Perfect for:** Both you and your wife backing up iPhones to same NAS with complete privacy.
+
+**How it works:**
+- Single Immich instance (one installation)
+- Multiple user accounts (each person gets their own)
+- Same upload location (Immich manages separation internally)
+- Complete privacy (wife can't see your photos, you can't see hers)
+- Optional sharing via albums
+
+#### Step 1: Create Admin Account (First User)
 
 ```
-1. Administration → Users → Create User
-2. Give username/email/password
-3. Share server URL with them
-4. They login with their credentials
-
-Each user has:
-- Separate library
-- Own albums
-- Own face recognition
-- Shared server
+# During initial setup (Step 6):
+1. Open http://localhost:2283
+2. Create admin account (this is YOU):
+   Email: your-email@example.com
+   Password: [strong password]
+   Name: Your Name
+3. Click "Sign Up"
 ```
+
+#### Step 2: Create Additional User Account (Wife)
+
+```
+# After admin setup:
+1. Login as admin
+2. Click user icon (top right) → Administration → Users
+3. Click "Create User"
+4. Fill in details:
+   Email: wife-email@example.com
+   Password: [generate strong password]
+   Name: Wife's Name
+   Storage quota: Unlimited (or set limit like 500GB)
+5. Click "Create"
+6. Give your wife her login credentials
+```
+
+#### Step 3: Connect iPhones
+
+**Your iPhone:**
+```
+1. Install Immich app from App Store
+2. Server URL: http://100.x.x.x:2283 (Tailscale IP)
+3. Email: your-email@example.com
+4. Password: your password
+5. Enable auto-backup
+6. Your photos upload to your private library
+```
+
+**Wife's iPhone:**
+```
+1. Install Immich app from App Store
+2. Server URL: http://100.x.x.x:2283 (SAME server)
+3. Email: wife-email@example.com
+4. Password: her password
+5. Enable auto-backup
+6. Her photos upload to her private library
+```
+
+#### Storage Structure (Automatic)
+
+**Single upload location in .env:**
+```bash
+UPLOAD_LOCATION=/Volumes/NAS_1/Immich/upload
+
+# Immich organizes internally:
+/Volumes/NAS_1/Immich/upload/
+├── library/
+│   ├── user_hash_1/     ← Your photos (managed by Immich)
+│   └── user_hash_2/     ← Wife's photos (managed by Immich)
+└── thumbs/
+```
+
+**No need to modify .env for multiple users** - default config handles it perfectly.
+
+#### Privacy & Separation
+
+**Complete isolation:**
+- ✅ Each user sees ONLY their own photos
+- ✅ Separate timelines, albums, search results
+- ✅ Separate face recognition databases
+- ✅ No way to accidentally see each other's photos
+- ✅ Admin can manage users but NOT see their photos
+
+**As admin, you can:**
+- View storage usage per user
+- Create/delete user accounts
+- Reset passwords
+- BUT NOT view other users' actual photos (unless shared)
+
+#### Sharing Photos Between Users (Optional)
+
+**Create shared album:**
+```
+1. User 1: Create album "Family Vacation"
+2. Add photos to album
+3. Click "Share" button
+4. Select "wife-email@example.com" (internal share)
+5. Wife can now see those specific photos in shared album
+6. Other photos remain completely private
+```
+
+**Both users can contribute:**
+```
+1. Create shared album "Our Wedding"
+2. Share with wife
+3. Both upload photos to it
+4. Both see all photos in that album
+5. Private photos remain separate
+```
+
+#### Storage Quotas (Optional)
+
+**Set per-user limits:**
+```
+Administration → Users → Edit User
+Storage quota: 500 GB (or unlimited)
+
+Useful if:
+- One person takes significantly more photos
+- Want to prevent filling up entire NAS
+- Need to allocate space fairly
+```
+
+**Monitor usage:**
+```
+Administration → Users
+See storage used per user:
+- Your Name: 120 GB / Unlimited
+- Wife's Name: 85 GB / Unlimited
+```
+
+#### Backup Strategy (All Users)
+
+**Weekly restic backup includes ALL users:**
+```bash
+# Backs up:
+/Volumes/NAS_1/Immich/upload  ← Both users' photos
+
+# Database tracks ownership
+# Restore preserves user separation
+```
+
+**Each user's photos protected** ✅
+
+#### Alternative: Physical Folder Separation (Not Recommended)
+
+**If you REALLY want separate folders on NAS:**
+
+Use External Libraries feature instead:
+```yaml
+# docker-compose.yml
+volumes:
+  - /Volumes/NAS_1/Immich/upload:/usr/src/app/upload
+  - /Volumes/NAS_1/Photos/Husband:/usr/src/app/external/Husband:ro
+  - /Volumes/NAS_1/Photos/Wife:/usr/src/app/external/Wife:ro
+
+# Then create external libraries and assign to users
+# But this is MORE complex and LESS flexible than default multi-user setup
+```
+
+**Recommendation:** Use default multi-user setup (simpler, better)
+
+#### Summary: Multi-User Setup
+
+**Single Immich instance:**
+- ✅ One installation, multiple users
+- ✅ Same server URL for everyone
+- ✅ Same UPLOAD_LOCATION in .env
+- ✅ Complete privacy automatically enforced
+- ✅ Optional sharing via albums
+- ✅ All photos backed up together
+
+**Setup time:** 5 minutes to add each user
+**Perfect for:** Families, couples, roommates
 
 ---
 
