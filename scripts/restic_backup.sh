@@ -45,6 +45,7 @@ restic -r "$RESTIC_REPO" backup "$SOURCE" \
     --exclude='*.fseventsd' \
     --exclude='*.TemporaryItems' \
     --exclude='/Volumes/NAS_1/Torrents' \
+    --exclude='/Volumes/NAS_1/Duplicates' \
     --exclude='/Volumes/NAS_1/Immich/thumbs' \
     --exclude='/Volumes/NAS_1/Immich/encoded-video' \
     >> "$LOG_FILE" 2>&1
