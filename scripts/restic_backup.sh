@@ -6,7 +6,7 @@
 #############################################
 
 # Configuration
-RESTIC_REPO="/Volumes/NAS_Backup/restic-repo"
+RESTIC_REPO="/Volumes/NAS_Backup/restic-NAS_1"
 SOURCE="/Volumes/NAS_1"
 RESTIC_PASSWORD_FILE="$HOME/.restic-password"
 LOG_FILE="$HOME/Library/Logs/restic_backup.log"
