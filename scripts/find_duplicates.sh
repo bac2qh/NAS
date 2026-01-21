@@ -137,77 +137,85 @@ echo ""
     echo "=========================================="
     echo ""
 
-    # Parse rdfind results.txt
-    # Skip commented lines and parse duplicate groups
-    current_id=""
-    group_size=""
-    files_in_group=()
+    # Parse rdfind results.txt using awk (handles negative IDs correctly)
+    awk -v exclude_patterns="${EXCLUDE_PATTERNS[*]}" '
+    BEGIN {
+        current_id = ""
+        split(exclude_patterns, patterns, " ")
+    }
 
-    while IFS= read -r line; do
-        # Skip comments
-        [[ "$line" =~ ^# ]] && continue
+    # Skip comments
+    /^#/ { next }
 
-        # Parse line: DUPTYPE id depth size device inode priority name
-        if [[ "$line" =~ ^DUPTYPE_([A-Z_]+)[[:space:]]+([0-9]+)[[:space:]]+[0-9]+[[:space:]]+([0-9]+)[[:space:]].*[[:space:]](.+)$ ]]; then
-            duptype="${BASH_REMATCH[1]}"
-            id="${BASH_REMATCH[2]}"
-            size="${BASH_REMATCH[3]}"
-            filepath="${BASH_REMATCH[4]}"
+    # Parse DUPTYPE lines
+    /^DUPTYPE_/ {
+        duptype = $1
+        id = $2
+        size = $4
 
-            # Check if file matches exclude patterns
-            skip=0
-            for pattern in "${EXCLUDE_PATTERNS[@]}"; do
-                if [[ "$filepath" == *"/$pattern"* ]] || [[ "$filepath" == *"/$pattern/"* ]]; then
-                    skip=1
-                    break
-                fi
-            done
+        # Filename starts at field 8
+        filename = ""
+        for (i = 8; i <= NF; i++) {
+            if (i > 8) filename = filename " "
+            filename = filename $i
+        }
 
-            [ $skip -eq 1 ] && continue
+        # Check if file matches exclude patterns
+        skip = 0
+        for (pattern in patterns) {
+            if (index(filename, "/" patterns[pattern] "/") > 0 ||
+                index(filename, "/" patterns[pattern]) == length(filename) - length(patterns[pattern])) {
+                skip = 1
+                break
+            }
+        }
+        if (skip) next
 
-            # Convert size to human readable
-            if [ "$size" -ge 1073741824 ]; then
-                human_size=$(awk "BEGIN {printf \"%.2f GB\", $size/1073741824}")
-            elif [ "$size" -ge 1048576 ]; then
-                human_size=$(awk "BEGIN {printf \"%.2f MB\", $size/1048576}")
-            elif [ "$size" -ge 1024 ]; then
-                human_size=$(awk "BEGIN {printf \"%.2f KB\", $size/1024}")
-            else
-                human_size="${size} B"
-            fi
+        # Convert size to human readable
+        if (size >= 1073741824) {
+            human_size = sprintf("%.2f GB", size/1073741824)
+        } else if (size >= 1048576) {
+            human_size = sprintf("%.2f MB", size/1048576)
+        } else if (size >= 1024) {
+            human_size = sprintf("%.2f KB", size/1024)
+        } else {
+            human_size = size " B"
+        }
 
-            # New group or continuation?
-            if [ "$id" != "$current_id" ]; then
-                # Print previous group if it had duplicates
-                if [ "${#files_in_group[@]}" -gt 1 ]; then
-                    for file_entry in "${files_in_group[@]}"; do
-                        echo "$file_entry"
-                    done
-                    echo ""
-                fi
+        # Use absolute value of ID for grouping
+        abs_id = (id < 0) ? -id : id
 
-                # Start new group
-                current_id="$id"
-                group_size="$human_size"
-                files_in_group=()
-            fi
+        # New group?
+        if (abs_id != current_id && current_id != "") {
+            # Print previous group if it had duplicates
+            if (group_count > 1) {
+                for (i = 0; i < group_count; i++) {
+                    print group_files[i]
+                }
+                print ""
+            }
+            group_count = 0
+        }
+        current_id = abs_id
 
-            # Add file to current group
-            if [ "$duptype" = "FIRST_OCCURRENCE" ]; then
-                files_in_group+=("[$group_size] $filepath  ← ORIGINAL (keep this)")
-            else
-                files_in_group+=("[$group_size] $filepath  ← DUPLICATE (can move)")
-            fi
-        fi
-    done < "$RDFIND_OUTPUT"
+        # Add file to current group
+        if (duptype == "DUPTYPE_FIRST_OCCURRENCE") {
+            group_files[group_count++] = "[" human_size "] " filename "  ← ORIGINAL (keep this)"
+        } else {
+            group_files[group_count++] = "[" human_size "] " filename "  ← DUPLICATE (can move)"
+        }
+    }
 
-    # Print last group
-    if [ "${#files_in_group[@]}" -gt 1 ]; then
-        for file_entry in "${files_in_group[@]}"; do
-            echo "$file_entry"
-        done
-        echo ""
-    fi
+    END {
+        # Print last group if it had duplicates
+        if (group_count > 1) {
+            for (i = 0; i < group_count; i++) {
+                print group_files[i]
+            }
+            print ""
+        }
+    }
+    ' "$RDFIND_OUTPUT"
 
     echo "=========================================="
     echo "SUMMARY"

@@ -46,10 +46,10 @@ echo ""
         id = $2
         size = $4
 
-        # Filename starts at field 9
+        # Filename starts at field 8
         filename = ""
-        for (i = 9; i <= NF; i++) {
-            if (i > 9) filename = filename " "
+        for (i = 8; i <= NF; i++) {
+            if (i > 8) filename = filename " "
             filename = filename $i
         }
 
