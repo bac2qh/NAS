@@ -1,146 +1,231 @@
 #!/bin/bash
 
 ###############################################
-# Find Duplicate Files Report
+# Find Duplicate Files Report (using rdfind)
 # Generates report of duplicate files by hash
 # User can review and manually move to dup folder
 ###############################################
 
-# Configuration
-SEARCH_DIRS=(
-    "/Volumes/NAS_1"
-    # Scan entire NAS (excluding some system folders)
-)
+SCAN_DIR="/Volumes/NAS_1"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+OUTPUT_DIR="/Volumes/NAS_1/duplicate_reports"
+RDFIND_OUTPUT="$OUTPUT_DIR/rdfind_raw_${TIMESTAMP}.txt"
+REPORT_FILE="$OUTPUT_DIR/duplicates_report_${TIMESTAMP}.txt"
 
-REPORT_FILE="$HOME/Desktop/duplicates_report_$(date +%Y%m%d_%H%M%S).txt"
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
 
 # Folders to exclude from scan (already excluded from backup)
-EXCLUDE_DIRS=(
-    "/Volumes/NAS_1/Torrents"
-    "/Volumes/NAS_1/Duplicates"
-    "/Volumes/NAS_1/Immich/thumbs"
-    "/Volumes/NAS_1/Immich/encoded-video"
-    "/Volumes/NAS_1/.Trashes"
-    "/Volumes/NAS_1/.Spotlight-V100"
-    "/Volumes/NAS_1/.fseventsd"
+EXCLUDE_PATTERNS=(
+    "Torrents"
+    "Duplicates"
+    "duplicate_reports"
+    "Immich/thumbs"
+    "Immich/encoded-video"
+    ".Trashes"
+    ".Spotlight-V100"
+    ".fseventsd"
+    ".TemporaryItems"
 )
 
 echo "=========================================="
-echo "  Duplicate File Finder"
+echo "  Duplicate File Finder (rdfind)"
 echo "=========================================="
 echo ""
 
-# Check if jdupes is installed
-if ! command -v jdupes &> /dev/null; then
-    echo "❌ jdupes not found. Installing..."
-    brew install jdupes
+# Check if rdfind is installed
+if ! command -v rdfind &> /dev/null; then
+    echo "❌ rdfind not found. Installing..."
+    brew install rdfind
     if [ $? -ne 0 ]; then
-        echo "Failed to install jdupes. Please install manually:"
-        echo "  brew install jdupes"
+        echo "Failed to install rdfind. Please install manually:"
+        echo "  brew install rdfind"
         exit 1
     fi
 fi
 
-echo "Searching for duplicates in:"
-for dir in "${SEARCH_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-        echo "  ✅ $dir"
-    else
-        echo "  ⚠️  $dir (not found, skipping)"
-    fi
-done
-echo ""
-
-echo "Excluding folders:"
-for dir in "${EXCLUDE_DIRS[@]}"; do
-    echo "  ⊘ $dir"
-done
-echo ""
-
-echo "⏳ Scanning for duplicates (this may take several minutes)..."
-echo "   Finding ALL file types (photos, videos, documents, etc.)"
-echo ""
-
-# Build jdupes exclude options
-JDUPES_EXCLUDE=""
-for exclude_dir in "${EXCLUDE_DIRS[@]}"; do
-    JDUPES_EXCLUDE="$JDUPES_EXCLUDE -X dir:$exclude_dir"
-done
-
-# Filter by existing directories
-EXISTING_DIRS=()
-for dir in "${SEARCH_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-        EXISTING_DIRS+=("$dir")
-    fi
-done
-
-if [ ${#EXISTING_DIRS[@]} -eq 0 ]; then
-    echo "❌ No directories found to scan!"
+# Check if scan directory exists
+if [ ! -d "$SCAN_DIR" ]; then
+    echo "❌ Directory not found: $SCAN_DIR"
     exit 1
 fi
 
-# Run jdupes and format output
+echo "Scanning: $SCAN_DIR"
+echo ""
+echo "Will exclude folders matching:"
+for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+    echo "  ⊘ */$pattern/*"
+done
+echo ""
+echo "⏳ Finding duplicates (this may take 5-15 minutes)..."
+echo "   Scanning ALL file types by hash (MD5)"
+echo ""
+
+# Run rdfind in dry-run mode
+# -dryrun true = don't modify anything
+# -makehardlinks false = just report, don't link
+# -makeresultsfile true = create results.txt
+# -outputname = where to save results
+
+cd "$SCAN_DIR" || exit 1
+
+rdfind -dryrun true \
+    -makehardlinks false \
+    -makeresultsfile true \
+    -outputname "$RDFIND_OUTPUT" \
+    "$SCAN_DIR"
+
+if [ $? -ne 0 ]; then
+    echo "❌ rdfind failed!"
+    exit 1
+fi
+
+echo ""
+echo "✅ Scan complete! Parsing results..."
+echo ""
+
+# Parse rdfind output and create readable report
 {
     echo "=========================================="
     echo "DUPLICATE FILES REPORT - ALL FILE TYPES"
     echo "Generated: $(date)"
     echo "=========================================="
     echo ""
-    echo "Scanned: ${EXISTING_DIRS[@]}"
-    echo "Excluded: ${EXCLUDE_DIRS[@]}"
+    echo "Scanned: $SCAN_DIR"
+    echo "Excluded patterns: ${EXCLUDE_PATTERNS[@]}"
     echo ""
-    echo "Each group below contains duplicate files (same content by hash)."
-    echo "Files are grouped together, with file size shown."
+    echo "Raw rdfind output: $RDFIND_OUTPUT"
+    echo ""
+    echo "=========================================="
+    echo "DUPLICATE FILE GROUPS"
+    echo "=========================================="
+    echo ""
+    echo "Format: [SIZE] ORIGINAL"
+    echo "        [SIZE] DUPLICATE (can be moved)"
     echo ""
     echo "=========================================="
     echo ""
 
-    # Run jdupes with excludes
-    # -r = recursive
-    # -S = show size
-    # -m = don't show files that have no duplicates
-    # -X dir:path = exclude directory
-    eval jdupes -r -S -m $JDUPES_EXCLUDE "${EXISTING_DIRS[@]}"
+    # Parse rdfind results.txt
+    # Skip commented lines and parse duplicate groups
+    current_id=""
+    group_size=""
+    files_in_group=()
 
-    echo ""
+    while IFS= read -r line; do
+        # Skip comments
+        [[ "$line" =~ ^# ]] && continue
+
+        # Parse line: DUPTYPE id depth size device inode priority name
+        if [[ "$line" =~ ^DUPTYPE_([A-Z_]+)[[:space:]]+([0-9]+)[[:space:]]+[0-9]+[[:space:]]+([0-9]+)[[:space:]].*[[:space:]](.+)$ ]]; then
+            duptype="${BASH_REMATCH[1]}"
+            id="${BASH_REMATCH[2]}"
+            size="${BASH_REMATCH[3]}"
+            filepath="${BASH_REMATCH[4]}"
+
+            # Check if file matches exclude patterns
+            skip=0
+            for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+                if [[ "$filepath" == *"/$pattern"* ]] || [[ "$filepath" == *"/$pattern/"* ]]; then
+                    skip=1
+                    break
+                fi
+            done
+
+            [ $skip -eq 1 ] && continue
+
+            # Convert size to human readable
+            if [ "$size" -ge 1073741824 ]; then
+                human_size=$(awk "BEGIN {printf \"%.2f GB\", $size/1073741824}")
+            elif [ "$size" -ge 1048576 ]; then
+                human_size=$(awk "BEGIN {printf \"%.2f MB\", $size/1048576}")
+            elif [ "$size" -ge 1024 ]; then
+                human_size=$(awk "BEGIN {printf \"%.2f KB\", $size/1024}")
+            else
+                human_size="${size} B"
+            fi
+
+            # New group or continuation?
+            if [ "$id" != "$current_id" ]; then
+                # Print previous group if it had duplicates
+                if [ "${#files_in_group[@]}" -gt 1 ]; then
+                    for file_entry in "${files_in_group[@]}"; do
+                        echo "$file_entry"
+                    done
+                    echo ""
+                fi
+
+                # Start new group
+                current_id="$id"
+                group_size="$human_size"
+                files_in_group=()
+            fi
+
+            # Add file to current group
+            if [ "$duptype" = "FIRST_OCCURRENCE" ]; then
+                files_in_group+=("[$group_size] $filepath  ← ORIGINAL (keep this)")
+            else
+                files_in_group+=("[$group_size] $filepath  ← DUPLICATE (can move)")
+            fi
+        fi
+    done < "$RDFIND_OUTPUT"
+
+    # Print last group
+    if [ "${#files_in_group[@]}" -gt 1 ]; then
+        for file_entry in "${files_in_group[@]}"; do
+            echo "$file_entry"
+        done
+        echo ""
+    fi
+
     echo "=========================================="
     echo "SUMMARY"
     echo "=========================================="
     echo ""
 
-    # Count duplicate sets
-    DUP_SETS=$(eval jdupes -r -m $JDUPES_EXCLUDE "${EXISTING_DIRS[@]}" | grep -c "^$" || echo "0")
-    echo "Total duplicate file sets found: $DUP_SETS"
+    # Count duplicate groups (groups with DUPTYPE_WITHIN_SAME_TREE)
+    DUP_COUNT=$(grep -c "DUPTYPE_WITHIN_SAME_TREE" "$RDFIND_OUTPUT" || echo "0")
+    echo "Total duplicate files found: $DUP_COUNT"
     echo ""
 
-    # Show statistics
-    echo "Total files scanned:"
-    for dir in "${EXISTING_DIRS[@]}"; do
-        COUNT=$(find "$dir" -type f 2>/dev/null | wc -l | tr -d ' ')
-        SIZE=$(du -sh "$dir" 2>/dev/null | awk '{print $1}')
-        echo "  $dir: $COUNT files ($SIZE)"
-    done
+    # Calculate space that can be saved
+    TOTAL_WASTED=$(awk '/DUPTYPE_WITHIN_SAME_TREE/ {sum+=$4} END {print sum}' "$RDFIND_OUTPUT")
+    if [ -n "$TOTAL_WASTED" ] && [ "$TOTAL_WASTED" != "0" ]; then
+        if [ "$TOTAL_WASTED" -ge 1073741824 ]; then
+            WASTED_HUMAN=$(awk "BEGIN {printf \"%.2f GB\", $TOTAL_WASTED/1073741824}")
+        elif [ "$TOTAL_WASTED" -ge 1048576 ]; then
+            WASTED_HUMAN=$(awk "BEGIN {printf \"%.2f MB\", $TOTAL_WASTED/1048576}")
+        else
+            WASTED_HUMAN=$(awk "BEGIN {printf \"%.2f KB\", $TOTAL_WASTED/1024}")
+        fi
+        echo "Space wasted by duplicates: $WASTED_HUMAN"
+    fi
+    echo ""
+
+    # Scan statistics
+    TOTAL_SIZE=$(du -sh "$SCAN_DIR" 2>/dev/null | awk '{print $1}')
+    TOTAL_FILES=$(find "$SCAN_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
+    echo "Scanned: $TOTAL_FILES files ($TOTAL_SIZE)"
     echo ""
 
     echo "=========================================="
     echo "HOW TO USE THIS REPORT"
     echo "=========================================="
     echo ""
-    echo "Each group of files listed above are duplicates (same content by hash)."
-    echo "This includes ALL file types: photos, videos, documents, music, etc."
+    echo "Each group shows:"
+    echo "  - ORIGINAL: The first occurrence (KEEP this one)"
+    echo "  - DUPLICATE: Other copies (can be moved/deleted)"
     echo ""
     echo "To manually remove duplicates:"
     echo "1. Review each group carefully"
-    echo "2. Decide which copy to KEEP (choose best location/name)"
-    echo "3. Move ALL OTHER copies to: /Volumes/NAS_1/Duplicates"
+    echo "2. Keep the ORIGINAL (or choose your preferred copy)"
+    echo "3. Move DUPLICATE files to: /Volumes/NAS_1/Duplicates"
     echo ""
     echo "Create duplicates folder:"
     echo "  mkdir -p /Volumes/NAS_1/Duplicates"
     echo ""
     echo "Example: Move duplicate to quarantine"
-    echo "  mv '/Volumes/NAS_1/Photos/IMG_1234.jpg' /Volumes/NAS_1/Duplicates/"
-    echo "  mv '/Volumes/NAS_1/Documents/report_copy.pdf' /Volumes/NAS_1/Duplicates/"
+    echo "  mv '/Volumes/NAS_1/Photos/IMG_1234_copy.jpg' /Volumes/NAS_1/Duplicates/"
     echo ""
     echo "After moving all duplicates:"
     echo "  1. Run backup (Duplicates folder is excluded automatically)"
@@ -149,22 +234,26 @@ fi
     echo ""
     echo "Note: /Volumes/NAS_1/Duplicates is already excluded from backup."
     echo ""
+    echo "Raw rdfind output saved at:"
+    echo "  $RDFIND_OUTPUT"
+    echo ""
 
 } > "$REPORT_FILE"
 
 echo "✅ Report generated!"
 echo ""
-echo "Report saved to:"
-echo "  $REPORT_FILE"
+echo "Files created:"
+echo "  Raw data:  $RDFIND_OUTPUT"
+echo "  Report:    $REPORT_FILE"
 echo ""
 echo "Opening report..."
 open "$REPORT_FILE"
 
 echo ""
 echo "Next steps:"
-echo "1. Review the report"
+echo "1. Review the report (organized by duplicate groups)"
 echo "2. Create duplicates folder: mkdir -p /Volumes/NAS_1/Duplicates"
-echo "3. Manually move duplicate files to that folder"
-echo "4. Update restic_backup.sh to exclude /Volumes/NAS_1/Duplicates"
-echo "5. Run backup (duplicates won't be backed up)"
+echo "3. Move DUPLICATE files (not ORIGINAL) to that folder"
+echo "4. Run backup (duplicates won't be backed up)"
+echo "5. Verify for a week, then: rm -rf /Volumes/NAS_1/Duplicates"
 echo ""
