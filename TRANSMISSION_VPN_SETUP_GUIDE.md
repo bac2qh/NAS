@@ -91,8 +91,8 @@ Password: your-nordvpn-account-password
 ### Step 3: Create Docker Compose Configuration
 
 ```bash
-# Create docker-compose.yml file
-nano docker-compose.yml
+# Create docker compose.yml file
+nano docker compose.yml
 ```
 
 **Paste this configuration:**
@@ -189,7 +189,7 @@ NORDVPN_USER=your-nordvpn-email@example.com
 NORDVPN_PASS=your-nordvpn-password
 ```
 
-**Update docker-compose.yml to use variables:**
+**Update docker compose.yml to use variables:**
 ```yaml
 environment:
   - OPENVPN_USERNAME=${NORDVPN_USER}
@@ -206,10 +206,10 @@ echo ".env" >> .gitignore  # Don't commit credentials to git
 
 ```bash
 # Start container
-docker-compose up -d
+docker compose up -d
 
 # Watch logs to verify VPN connection
-docker-compose logs -f transmission
+docker compose logs -f transmission
 
 # Look for these success messages:
 # ✅ "Initialization Sequence Completed"
@@ -424,7 +424,7 @@ docker exec transmission-vpn curl -s --max-time 5 ifconfig.me
 # Result: Timeout (no connection) ✅
 
 # Restart container (VPN reconnects)
-docker-compose restart transmission
+docker compose restart transmission
 ```
 
 ### IP Leak Testing
@@ -474,14 +474,14 @@ curl -s ifconfig.me
 cd ~/docker-apps/transmission
 
 # Pull latest image
-docker-compose pull
+docker compose pull
 
 # Restart with new version
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 
 # Check logs
-docker-compose logs -f transmission
+docker compose logs -f transmission
 ```
 
 **Update frequency:** Monthly (check Docker Hub for updates)
@@ -491,14 +491,14 @@ docker-compose logs -f transmission
 **Check status:**
 ```bash
 # Container running?
-docker-compose ps
+docker compose ps
 
 # Should show:
 # NAME                STATUS              PORTS
 # transmission-vpn    Up 3 hours         0.0.0.0:9091->9091/tcp
 
 # View logs
-docker-compose logs -f transmission
+docker compose logs -f transmission
 
 # Check VPN status
 docker exec transmission-vpn curl -s ipinfo.io | grep country
@@ -517,17 +517,17 @@ du -sh /Volumes/NAS_1/Torrents
 
 ```bash
 # Restart (preserves downloads and settings)
-docker-compose restart transmission
+docker compose restart transmission
 
 # Stop
-docker-compose stop transmission
+docker compose stop transmission
 
 # Start
-docker-compose start transmission
+docker compose start transmission
 
 # Full restart (reload config)
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 ---
@@ -539,21 +539,21 @@ docker-compose up -d
 **Check NordVPN credentials:**
 ```bash
 # View logs for authentication errors
-docker-compose logs transmission | grep -i auth
+docker compose logs transmission | grep -i auth
 
 # Common errors:
 # "AUTH_FAILED" → Wrong username/password
 # "Cannot resolve host" → Network issue
 
-# Fix: Update credentials in .env or docker-compose.yml
-nano .env  # or docker-compose.yml
-docker-compose down
-docker-compose up -d
+# Fix: Update credentials in .env or docker compose.yml
+nano .env  # or docker compose.yml
+docker compose down
+docker compose up -d
 ```
 
 **Try different VPN protocol:**
 ```yaml
-# In docker-compose.yml, change:
+# In docker compose.yml, change:
 - NORDVPN_PROTOCOL=tcp    # Try tcp if udp fails
 # Or:
 - NORDVPN_PROTOCOL=udp    # Try udp if tcp is slow
@@ -569,10 +569,10 @@ docker-compose up -d
 
 **Check container is running:**
 ```bash
-docker-compose ps
+docker compose ps
 
 # If not running, check logs:
-docker-compose logs transmission
+docker compose logs transmission
 ```
 
 **Verify port not in use:**
@@ -581,7 +581,7 @@ docker-compose logs transmission
 lsof -i :9091
 
 # If taken by another app, change port:
-# In docker-compose.yml:
+# In docker compose.yml:
 ports:
   - "9092:9091"  # Use 9092 instead
 
@@ -590,7 +590,7 @@ ports:
 
 **Check local network setting:**
 ```yaml
-# In docker-compose.yml, verify:
+# In docker compose.yml, verify:
 - LOCAL_NETWORK=192.168.4.0/24
 
 # Get your actual network:
@@ -651,7 +651,7 @@ ls -lah /Volumes/NAS_1/Torrents/downloads
 
 **View crash logs:**
 ```bash
-docker-compose logs transmission | tail -50
+docker compose logs transmission | tail -50
 
 # Common issues:
 # - Wrong credentials (AUTH_FAILED)
@@ -684,7 +684,7 @@ Docker Desktop → Settings → Resources
 
 **Check logs for errors:**
 ```bash
-docker-compose logs -f transmission | grep -i error
+docker compose logs -f transmission | grep -i error
 ```
 
 ---
@@ -696,7 +696,7 @@ docker-compose logs -f transmission | grep -i error
 **Try different UIs:**
 
 ```yaml
-# In docker-compose.yml:
+# In docker compose.yml:
 - TRANSMISSION_WEB_UI=flood              # Modern (default)
 # Or:
 - TRANSMISSION_WEB_UI=transmission-web-control  # Feature-rich
@@ -708,8 +708,8 @@ docker-compose logs -f transmission | grep -i error
 
 **Restart to apply:**
 ```bash
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 ### Authentication (Password Protect)
@@ -725,8 +725,8 @@ docker-compose up -d
 
 **Restart:**
 ```bash
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 **Now Web UI requires login** (recommended for Tailscale access)
@@ -747,7 +747,7 @@ docker-compose up -d
 **Run separate containers for different purposes:**
 
 ```yaml
-# docker-compose.yml with multiple services:
+# docker compose.yml with multiple services:
 services:
   transmission-us:
     # ... config with NORDVPN_COUNTRY=US
@@ -906,7 +906,7 @@ Plan for: 100GB - 1TB depending on usage
 
 **Next steps:**
 1. Create directory structure
-2. Set up docker-compose.yml
+2. Set up docker compose.yml
 3. Add NordVPN credentials
 4. Start container
 5. Access web UI
@@ -923,6 +923,6 @@ Plan for: 100GB - 1TB depending on usage
 - **Docker compose docs:** https://docs.docker.com/compose/
 
 **Need help?**
-- Check container logs: `docker-compose logs transmission`
+- Check container logs: `docker compose logs transmission`
 - Verify VPN: `docker exec transmission-vpn curl ifconfig.me`
 - Test from browser: http://localhost:9091

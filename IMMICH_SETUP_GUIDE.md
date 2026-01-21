@@ -53,8 +53,8 @@ cd ~/immich-app
 ### Step 3: Download Immich Configuration
 
 ```bash
-# Download docker-compose file:
-curl -o docker-compose.yml https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml
+# Download docker compose file:
+curl -o docker compose.yml https://github.com/immich-app/immich/releases/latest/download/docker compose.yml
 
 # Download environment configuration:
 curl -o .env https://github.com/immich-app/immich/releases/latest/download/example.env
@@ -84,10 +84,10 @@ TZ=America/Chicago
 
 ```bash
 # Start all Immich services:
-docker-compose up -d
+docker compose up -d
 
 # Check status:
-docker-compose ps
+docker compose ps
 
 # Should show:
 # immich-server       running
@@ -193,11 +193,11 @@ Docker maps /Volumes/NAS_1/Photos inside the container.
 
 ### Configure Docker Volume for External Library
 
-**Edit docker-compose.yml to add external library:**
+**Edit docker compose.yml to add external library:**
 
 ```bash
 cd ~/immich-app
-nano docker-compose.yml
+nano docker compose.yml
 
 # Find the immich-server service, add under volumes:
 volumes:
@@ -206,8 +206,8 @@ volumes:
   # ↑ Add this line (ro = read-only)
 
 # Save and restart:
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 **Now scan will include existing photos** (takes hours for large collections)
@@ -369,11 +369,11 @@ Weekly backup protects everything ✅
 cd ~/immich-app
 
 # Pull latest version:
-docker-compose pull
+docker compose pull
 
 # Restart services:
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 
 # Check version:
 # Web UI → Administration → Server Info
@@ -385,10 +385,10 @@ docker-compose up -d
 
 ```bash
 # Check service status:
-docker-compose ps
+docker compose ps
 
 # View logs:
-docker-compose logs -f immich-server
+docker compose logs -f immich-server
 
 # Check disk usage:
 du -sh /Volumes/NAS_1/Immich/
@@ -417,7 +417,7 @@ docker ps
 # If empty, start Docker Desktop
 # Then:
 cd ~/immich-app
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Can't Connect from iPhone
@@ -456,7 +456,7 @@ tailscale status
 **Check server:**
 ```bash
 # View upload logs:
-docker-compose logs -f immich-server | grep upload
+docker compose logs -f immich-server | grep upload
 ```
 
 ### Slow Performance
@@ -471,7 +471,7 @@ Temporary: Performance improves after initial scan
 **Optimize:**
 ```bash
 # Increase ML workers (if you have RAM):
-# Edit docker-compose.yml:
+# Edit docker compose.yml:
 # Set IMMICH_WORKERS=4 (default is 2)
 ```
 
@@ -673,7 +673,7 @@ See storage used per user:
 
 Use External Libraries feature instead:
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 volumes:
   - /Volumes/NAS_1/Immich/upload:/usr/src/app/upload
   - /Volumes/NAS_1/Photos/Husband:/usr/src/app/external/Husband:ro
