@@ -72,10 +72,42 @@ rdfind -dryrun true \
     -makehardlinks false \
     -makeresultsfile true \
     -outputname "$RDFIND_OUTPUT" \
-    "$SCAN_DIR"
+    "$SCAN_DIR" 2>&1
 
-if [ $? -ne 0 ]; then
-    echo "❌ rdfind failed!"
+RDFIND_STATUS=$?
+
+if [ $RDFIND_STATUS -ne 0 ]; then
+    echo ""
+    echo "❌ rdfind scan failed with status $RDFIND_STATUS"
+    echo ""
+    echo "Common issues:"
+    echo "  - Permission denied: Check NAS drive is writable"
+    echo "  - Disk not mounted: Verify /Volumes/NAS_1 exists"
+    echo "  - Out of space: Check disk space in ~/Documents"
+    echo ""
+    echo "Partial results may be at:"
+    echo "  $RDFIND_OUTPUT"
+    echo ""
+    exit 1
+fi
+
+# Check if output file was created
+if [ ! -f "$RDFIND_OUTPUT" ]; then
+    echo ""
+    echo "❌ rdfind output file not created!"
+    echo "Expected: $RDFIND_OUTPUT"
+    echo ""
+    echo "Check ~/Documents permissions"
+    exit 1
+fi
+
+# Check if output file has content
+if [ ! -s "$RDFIND_OUTPUT" ]; then
+    echo ""
+    echo "⚠️  rdfind output file is empty"
+    echo "This might mean no files were found or an error occurred"
+    echo ""
+    echo "Check: $RDFIND_OUTPUT"
     exit 1
 fi
 
@@ -239,14 +271,54 @@ echo ""
 
 } > "$REPORT_FILE"
 
-echo "✅ Report generated!"
+REPORT_STATUS=$?
+
+if [ $REPORT_STATUS -ne 0 ]; then
+    echo ""
+    echo "❌ Report generation failed with status $REPORT_STATUS"
+    echo ""
+    echo "Raw rdfind output is still available at:"
+    echo "  $RDFIND_OUTPUT"
+    echo ""
+    echo "You can manually review the raw file, or try running again."
+    exit 1
+fi
+
+# Check if report file was created
+if [ ! -f "$REPORT_FILE" ]; then
+    echo ""
+    echo "❌ Report file not created!"
+    echo ""
+    echo "Raw rdfind output is available at:"
+    echo "  $RDFIND_OUTPUT"
+    echo ""
+    exit 1
+fi
+
+# Check if report has content
+if [ ! -s "$REPORT_FILE" ]; then
+    echo ""
+    echo "⚠️  Report file is empty"
+    echo ""
+    echo "Raw rdfind output is available at:"
+    echo "  $RDFIND_OUTPUT"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Report generated successfully!"
 echo ""
 echo "Files created:"
 echo "  Raw data:  $RDFIND_OUTPUT"
 echo "  Report:    $REPORT_FILE"
 echo ""
 echo "Opening report..."
-open "$REPORT_FILE"
+if open "$REPORT_FILE" 2>/dev/null; then
+    echo "✅ Report opened"
+else
+    echo "⚠️  Could not auto-open report. Please open manually:"
+    echo "  open '$REPORT_FILE'"
+fi
 
 echo ""
 echo "Next steps:"
