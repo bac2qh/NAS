@@ -50,9 +50,21 @@ NordVPN requires **service credentials** for manual (OpenVPN/WireGuard) setups.
 
 ---
 
-## Step 1: Create .env File
+## Step 1: Create Working Directory
 
-Create a file called `.env` in the same directory as `docker-compose.yml`.
+```bash
+# Create working directory
+mkdir -p ~/docker-apps/transmission-gluetun
+cd ~/docker-apps/transmission-gluetun
+
+# Create folders for downloads (on NAS)
+mkdir -p /Volumes/NAS_1/Torrents/downloads
+mkdir -p /Volumes/NAS_1/Torrents/config
+```
+
+## Step 2: Create .env File
+
+Create a file called `.env` in the working directory (`~/docker-apps/transmission-gluetun`).
 
 ```bash
 # NordVPN service credentials (NOT account email/password)
@@ -66,11 +78,12 @@ SERVER_COUNTRIES=United States
 (Optional but recommended)
 ```bash
 chmod 600 .env
+echo ".env" >> .gitignore  # Keep credentials out of git
 ```
 
 ---
 
-## Step 2: Docker Compose Configuration
+## Step 3: Docker Compose Configuration
 
 ```yaml
 version: "3.8"
@@ -92,8 +105,8 @@ services:
       - SERVER_COUNTRIES=${SERVER_COUNTRIES}
 
       # OPTIONAL: allow LAN access to Transmission Web UI
-      # CHANGE this to match your LAN subnet
-      - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24
+      # CHANGE this to match your LAN subnet (check with: ipconfig getifaddr en1)
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.4.0/24
 
     ports:
       - 9091:9091  # Transmission Web UI
@@ -117,19 +130,19 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/New_York
+      - TZ=America/Chicago  # Change to your timezone
       - TRANSMISSION_WEB_UI=flood-for-transmission
 
     volumes:
-      - ./config:/config
-      - ./downloads:/downloads
+      - /Volumes/NAS_1/Torrents/config:/config
+      - /Volumes/NAS_1/Torrents/downloads:/downloads
 
     restart: unless-stopped
 ```
 
 ---
 
-## Step 3: Start the Stack
+## Step 4: Start the Stack
 
 ```bash
 docker compose up -d
@@ -145,11 +158,11 @@ You should see:
 
 ---
 
-## Step 4: Verify VPN Routing (IMPORTANT)
+## Step 5: Verify VPN Routing (IMPORTANT)
 
 Inside Transmission container:
 ```bash
-docker exec -it transmission curl ifconfig.me
+docker exec transmission curl ifconfig.me
 ```
 ✔ Should show a NordVPN IP
 
@@ -157,7 +170,7 @@ On host machine:
 ```bash
 curl ifconfig.me
 ```
-✔ Should show your normal ISP or Tailscale exit node IP
+✔ Should show your normal ISP IP (192.168.4.201 goes through Eero router)
 
 **If both show the same IP → STOP, something is misconfigured.**
 
@@ -172,11 +185,19 @@ docker stop gluetun
 
 Now test Transmission:
 ```bash
-docker exec -it transmission ping 8.8.8.8
+docker exec transmission ping -c 3 8.8.8.8
 ```
 
-✔ This should FAIL
+✔ This should FAIL (no network connectivity)
 ✔ Confirms no traffic leaks outside the VPN
+
+Restart Gluetun:
+```bash
+docker start gluetun
+# Wait 30 seconds for VPN to reconnect
+sleep 30
+docker exec transmission curl ifconfig.me  # Should show NordVPN IP again
+```
 
 ---
 
@@ -189,7 +210,7 @@ http://localhost:9091
 
 From LAN devices:
 ```
-http://<docker-host-ip>:9091
+http://192.168.4.201:9091  # Your Mac's IP
 ```
 
 If LAN access doesn't work, double-check:
@@ -197,7 +218,10 @@ If LAN access doesn't work, double-check:
 FIREWALL_OUTBOUND_SUBNETS
 ```
 
-This must match your LAN subnet, e.g.:
+This must match your LAN subnet. For your network:
+- `192.168.4.0/24` (your Eero router network)
+
+Other common subnets:
 - `192.168.1.0/24`
 - `10.0.0.0/24`
 
@@ -291,8 +315,9 @@ docker compose ps gluetun
 **Can't access Web UI from LAN:**
 ```bash
 # Check FIREWALL_OUTBOUND_SUBNETS matches your network
-# Get your network: ipconfig getifaddr en0
+# Get your network: ipconfig getifaddr en1  # Ethernet (or en0 for WiFi)
 # If 192.168.4.x, use: 192.168.4.0/24
+# If 192.168.1.x, use: 192.168.1.0/24
 ```
 
 ---
