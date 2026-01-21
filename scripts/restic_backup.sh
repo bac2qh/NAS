@@ -44,6 +44,9 @@ restic -r "$RESTIC_REPO" backup "$SOURCE" \
     --exclude='*.Trashes' \
     --exclude='*.fseventsd' \
     --exclude='*.TemporaryItems' \
+    --exclude='/Volumes/NAS_1/Torrents' \
+    --exclude='/Volumes/NAS_1/Immich/thumbs' \
+    --exclude='/Volumes/NAS_1/Immich/encoded-video' \
     >> "$LOG_FILE" 2>&1
 
 BACKUP_STATUS=$?
@@ -55,10 +58,10 @@ else
     exit $BACKUP_STATUS
 fi
 
-# Cleanup old snapshots (keep last 30 daily, 12 monthly)
+# Cleanup old snapshots (weekly backups: keep 8 weekly, 12 monthly)
 echo "$(date): Pruning old snapshots..." >> "$LOG_FILE"
 restic -r "$RESTIC_REPO" forget \
-    --keep-daily 30 \
+    --keep-weekly 8 \
     --keep-monthly 12 \
     --prune \
     >> "$LOG_FILE" 2>&1
