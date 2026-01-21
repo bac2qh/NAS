@@ -58,8 +58,11 @@ mkdir -p ~/docker-apps/transmission-gluetun
 cd ~/docker-apps/transmission-gluetun
 
 # Create folders for downloads (on NAS)
-mkdir -p /Volumes/NAS_1/Torrents/downloads
+# IMPORTANT: Create subdirectories that Transmission expects
+mkdir -p /Volumes/NAS_1/Torrents/downloads/complete
+mkdir -p /Volumes/NAS_1/Torrents/downloads/incomplete
 mkdir -p /Volumes/NAS_1/Torrents/config
+mkdir -p /Volumes/NAS_1/Torrents/watch
 ```
 
 ## Step 2: Create .env File
@@ -136,6 +139,7 @@ services:
     volumes:
       - /Volumes/NAS_1/Torrents/config:/config
       - /Volumes/NAS_1/Torrents/downloads:/downloads
+      - /Volumes/NAS_1/Torrents/watch:/watch  # Auto-add torrents from this folder
 
     restart: unless-stopped
 ```
@@ -164,15 +168,26 @@ Inside Transmission container:
 ```bash
 docker exec transmission curl ifconfig.me
 ```
-✔ Should show a NordVPN IP
+✔ Should show a NordVPN IP (e.g., 194.195.93.132)
 
 On host machine:
 ```bash
 curl ifconfig.me
 ```
-✔ Should show your normal ISP IP (192.168.4.201 goes through Eero router)
+✔ Should show your normal ISP IP (different from container)
 
 **If both show the same IP → STOP, something is misconfigured.**
+
+**Verify it's actually NordVPN:**
+```bash
+# Check IP ownership from container
+docker exec transmission curl ipinfo.io | grep org
+# Should show: "org": "AS174 NordVPN" or similar
+
+# Compare with your host
+curl ipinfo.io | grep org
+# Should show your ISP name (Comcast, Verizon, etc.)
+```
 
 ---
 
@@ -208,6 +223,15 @@ From the host:
 http://localhost:9091
 ```
 
+**Default credentials:**
+- Username: `admin`
+- Password: `admin`
+
+**⚠️ Change password immediately after first login:**
+```
+Settings → Authentication → Update Password
+```
+
 From LAN devices:
 ```
 http://192.168.4.201:9091  # Your Mac's IP
@@ -224,6 +248,45 @@ This must match your LAN subnet. For your network:
 Other common subnets:
 - `192.168.1.0/24`
 - `10.0.0.0/24`
+
+---
+
+## Managing Containers
+
+**Start containers:**
+```bash
+cd ~/docker-apps/transmission-gluetun
+docker compose up -d
+```
+
+**Stop containers (recommended when done):**
+```bash
+docker compose down
+```
+✔ Stops and removes containers (your downloads/config stay safe on NAS)
+
+**Stop temporarily (faster restart):**
+```bash
+docker compose stop   # Stop
+docker compose start  # Resume
+```
+
+**Restart containers:**
+```bash
+docker compose restart
+```
+
+**Check status:**
+```bash
+docker compose ps
+```
+
+**View logs:**
+```bash
+docker compose logs -f gluetun       # Watch gluetun logs
+docker compose logs -f transmission  # Watch transmission logs
+docker compose logs --tail 50        # Last 50 lines from all
+```
 
 ---
 
@@ -310,6 +373,22 @@ docker logs gluetun | grep -i error
 docker compose ps gluetun
 # Should show: Up (healthy)
 # If not, restart: docker compose restart gluetun
+```
+
+**Missing directory errors on startup:**
+```bash
+# If you see errors like:
+# "stat: cannot statx '/downloads/complete': No such file or directory"
+# "Couldn't watch '/watch': No such file or directory"
+
+# Fix: Create missing directories
+mkdir -p /Volumes/NAS_1/Torrents/downloads/complete
+mkdir -p /Volumes/NAS_1/Torrents/downloads/incomplete
+mkdir -p /Volumes/NAS_1/Torrents/watch
+
+# Restart containers
+docker compose down
+docker compose up -d
 ```
 
 **Can't access Web UI from LAN:**
