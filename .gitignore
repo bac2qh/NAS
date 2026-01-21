@@ -1,0 +1,30 @@
+# Credentials and secrets
+.env
+*.password
+*credentials*
+*.key
+*.pem
+*.p12
+
+# restic repository password
+.restic-password
+
+# Local configuration
+.DS_Store
+*.local
+.vscode/
+.idea/
+
+# Backup files
+*.bak
+*~
+*.swp
+*.swo
+
+# Docker volumes and data
+docker-compose.override.yml
+volumes/
+
+# Temporary files
+*.tmp
+*.log
