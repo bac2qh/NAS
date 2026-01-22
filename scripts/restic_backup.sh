@@ -38,6 +38,8 @@ echo "$(date): Starting restic backup" >> "$LOG_FILE"
 
 # Run backup
 restic -r "$RESTIC_REPO" backup "$SOURCE" \
+    --verbose \
+    --progress \
     --exclude-caches \
     --exclude='*.DS_Store' \
     --exclude='*.Spotlight-*' \
