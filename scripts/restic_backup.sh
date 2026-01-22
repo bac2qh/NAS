@@ -21,7 +21,7 @@ if [ ! -d "$SOURCE" ]; then
 fi
 
 # Check if backup drive mounted
-if [ ! -d "/Volumes/Elements/restic-NAS_1" ]; then
+if [ ! -d "/Volumes/Elements" ]; then
     echo "$(date): ERROR - Backup drive not mounted" >> "$LOG_FILE"
     exit 1
 fi
