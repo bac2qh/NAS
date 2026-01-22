@@ -6,7 +6,7 @@
 #############################################
 
 # Configuration
-RESTIC_REPO="/Volumes/NAS_Backup/restic-NAS_1"
+RESTIC_REPO="/Volumes/Elements/restic-NAS_1"
 SOURCE="/Volumes/NAS_1"
 RESTIC_PASSWORD_FILE="$HOME/.restic-password"
 LOG_FILE="$HOME/Library/Logs/restic_backup.log"
@@ -21,7 +21,7 @@ if [ ! -d "$SOURCE" ]; then
 fi
 
 # Check if backup drive mounted
-if [ ! -d "/Volumes/NAS_Backup" ]; then
+if [ ! -d "/Volumes/Elements/restic-NAS_1" ]; then
     echo "$(date): ERROR - Backup drive not mounted" >> "$LOG_FILE"
     exit 1
 fi
