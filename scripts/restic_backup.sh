@@ -39,7 +39,6 @@ echo "$(date): Starting restic backup" >> "$LOG_FILE"
 # Run backup
 restic -r "$RESTIC_REPO" backup "$SOURCE" \
     --verbose \
-    --progress \
     --exclude-caches \
     --exclude='*.DS_Store' \
     --exclude='*.Spotlight-*' \
@@ -50,7 +49,7 @@ restic -r "$RESTIC_REPO" backup "$SOURCE" \
     --exclude='/Volumes/NAS_1/Duplicates' \
     --exclude='/Volumes/NAS_1/Immich/thumbs' \
     --exclude='/Volumes/NAS_1/Immich/encoded-video' \
-    >> "$LOG_FILE" 2>&1
+    2>&1 | tee -a "$LOG_FILE"
 
 BACKUP_STATUS=$?
 
