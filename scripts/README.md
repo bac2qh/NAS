@@ -2,30 +2,8 @@
 
 ## Backup Scripts (restic)
 
-### weekly_backup_reminder.sh (Recommended for WD Elements)
-Interactive weekly backup helper script.
-
-**For WD Elements 16TB backup drive (consumer, not NAS-rated):**
-
-**Usage:**
-```bash
-# Every Sunday (set calendar reminder):
-# 1. Plug in WD Elements backup drive
-# 2. Run:
-./scripts/weekly_backup_reminder.sh
-
-# 3. Follow prompts
-# 4. When complete, unplug drive and store safely
-```
-
-**Why weekly + unplugged:**
-- WD Elements NOT designed for 24/7 operation
-- Protects from simultaneous failures (power surge, malware)
-- Extends drive life by 10x
-- True offline backup (ransomware protection)
-
 ### restic_backup.sh
-Core backup script (called by weekly_backup_reminder.sh or automated daily).
+Core backup script for automated incremental backups.
 
 **Setup:**
 ```bash
@@ -65,6 +43,38 @@ tail ~/Library/Logs/restic_verify.log
 - Reads and verifies all data chunks (thorough check)
 - Lists current snapshots
 - Shows repository statistics
+
+## Duplicate Management
+
+### find_duplicates.sh
+Scans for duplicate files based on checksums.
+
+**Usage:**
+```bash
+./scripts/find_duplicates.sh
+```
+
+**What it does:**
+- Recursively scans directories for duplicate files
+- Uses checksums to identify identical files
+- Generates a report of duplicates found
+
+### move_duplicates.sh
+Moves duplicate files based on report from find_duplicates.sh.
+
+**Usage:**
+```bash
+# First generate duplicate report:
+./scripts/find_duplicates.sh > duplicates_report.txt
+
+# Then move duplicates:
+./scripts/move_duplicates.sh duplicates_report.txt
+```
+
+**What it does:**
+- Reads duplicate report
+- Moves duplicate files to specified location
+- Keeps one copy of each file
 
 ## Setup Scripts
 
@@ -116,15 +126,6 @@ Network and service verification.
 - Drive mounts
 - Routing table
 
-## Deprecated Scripts
-
-### backup_to_second_drive.sh.deprecated
-Old rsync-based backup script (replaced by restic).
-
-**Why deprecated:**
-- Backup drive is NTFS (Time Machine/rsync snapshots don't work well)
-- restic provides better corruption detection + recovery
-- restic is cross-platform (works on Linux/Windows if you migrate)
 
 ## Quick Commands
 

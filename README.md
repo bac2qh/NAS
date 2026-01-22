@@ -16,13 +16,7 @@ Complete guide for building a home NAS using M1 MacBook Pro with external drives
    - Power management
    - Troubleshooting
 
-2. **[FILE_SYSTEM_GUIDE.md](FILE_SYSTEM_GUIDE.md)** - File system selection guide
-   - **APFS vs exFAT vs ZFS comparison**
-   - **Recommended: APFS (Encrypted)** for large media files
-   - Data corruption protection strategies
-   - ZFS considerations (and why not to use it on macOS)
-
-3. **[EDITING_WORKFLOW_GUIDE.md](EDITING_WORKFLOW_GUIDE.md)** - Editing from NAS on Windows PC
+2. **[EDITING_WORKFLOW_GUIDE.md](EDITING_WORKFLOW_GUIDE.md)** - Editing from NAS on Windows PC
    - **Can you edit directly from NAS?** (Photos: YES, Large videos: Use proxies or copy first)
    - Network performance analysis and optimization
    - Photo editing workflow (Lightroom, Photoshop, Capture One)
@@ -30,7 +24,7 @@ Complete guide for building a home NAS using M1 MacBook Pro with external drives
    - Proxy workflow explained (best for 4K/8K)
    - Software-specific optimization tips
 
-4. **[TAILSCALE_REMOTE_ACCESS_GUIDE.md](TAILSCALE_REMOTE_ACCESS_GUIDE.md)** - Remote access setup
+3. **[TAILSCALE_REMOTE_ACCESS_GUIDE.md](TAILSCALE_REMOTE_ACCESS_GUIDE.md)** - Remote access setup
    - **No public key registration needed!** Simple Google/Microsoft/GitHub sign-in
    - Step-by-step Tailscale setup (Mac, Windows, iPhone, Android)
    - How Tailscale works with NordVPN (both active simultaneously)
@@ -55,19 +49,19 @@ All scripts are located in the `scripts/` directory.
 ```
 
 ### Backup Management
-- **[scripts/backup_to_second_drive.sh](scripts/backup_to_second_drive.sh)**
-  - Automated backup from primary to backup drive
-  - Uses rsync with checksums
+- **[scripts/restic_backup.sh](scripts/restic_backup.sh)**
+  - Automated backup using restic (incremental, deduplicated)
+  - Includes pruning of old snapshots
   - Logs all operations
-  - macOS notifications on completion/failure
+  - Better corruption detection than rsync
 
 ```bash
 # Run manually
-./scripts/backup_to_second_drive.sh
+./scripts/restic_backup.sh
 
 # Or schedule with cron (runs daily at 2 AM)
 crontab -e
-# Add: 0 2 * * * /Users/your-username/Work/personal/NAS/scripts/backup_to_second_drive.sh
+# Add: 0 2 * * * /Users/your-username/Work/personal/NAS/scripts/restic_backup.sh
 ```
 
 ### Drive Health Monitoring
@@ -100,7 +94,7 @@ sudo ./scripts/check_drive_health.sh
 # Open Disk Utility
 # Format IronWolf Pro as "NAS_Primary" (APFS Encrypted)
 # Format backup HDD as "NAS_Backup" (APFS Encrypted)
-# See FILE_SYSTEM_GUIDE.md for detailed recommendations
+# APFS provides best data integrity for large files with Copy-on-Write + checksumming
 ```
 
 ### 3. Create Folder Structure
@@ -170,7 +164,7 @@ open /Applications/Tailscale.app
 - **Format**: APFS (Encrypted)
 - **Why**: Best data integrity for large files (up to 50GB each)
 - **Protection**: Copy-on-Write + checksumming
-- **See**: [FILE_SYSTEM_GUIDE.md](FILE_SYSTEM_GUIDE.md)
+- **Avoid exFAT**: No corruption protection for large files
 
 ### Network Access
 - **Local (home network)**: `smb://192.168.1.x` or `smb://macbook-name.local`
@@ -203,8 +197,11 @@ Your setup has multiple security layers:
 
 ### Automated Backups
 ```bash
-# Daily automated backup
-./scripts/backup_to_second_drive.sh
+# Daily automated backup (restic)
+./scripts/restic_backup.sh
+
+# Monthly backup verification
+./scripts/restic_verify.sh
 
 # Weekly health checks
 sudo ./scripts/check_drive_health.sh
@@ -262,11 +259,12 @@ sudo ./scripts/check_drive_health.sh
 | Task | Command |
 |------|---------|
 | Test network config | `./scripts/test_network.sh` |
-| Run backup | `./scripts/backup_to_second_drive.sh` |
+| Run backup | `./scripts/restic_backup.sh` |
+| Verify backup | `./scripts/restic_verify.sh` |
 | Check drive health | `sudo ./scripts/check_drive_health.sh` |
 | Restart file sharing | `sudo launchctl kickstart -k system/com.apple.smbd` |
 | Check Tailscale IP | `tailscale ip -4` |
-| View backup log | `cat ~/Library/Logs/nas_backup.log` |
+| View backup log | `cat ~/Library/Logs/restic_backup.log` |
 | Mount drive | `diskutil mountDisk /dev/disk2` |
 | Check SMART | `sudo smartctl -a /dev/disk2` |
 
@@ -277,7 +275,6 @@ sudo ./scripts/check_drive_health.sh
 - ✅ Copy-on-Write protects against corruption
 - ✅ Checksumming detects bit rot
 - ❌ Don't use exFAT (no corruption protection)
-- See [FILE_SYSTEM_GUIDE.md](FILE_SYSTEM_GUIDE.md)
 
 ### NordVPN Always Connected
 - Your Mac runs NordVPN 24/7 for privacy
@@ -304,11 +301,10 @@ When your needs grow:
 ## Getting Started
 
 1. Read [HOME_NAS_BUILD_GUIDE.md](HOME_NAS_BUILD_GUIDE.md)
-2. Read [FILE_SYSTEM_GUIDE.md](FILE_SYSTEM_GUIDE.md) (file format decision)
-3. Follow Quick Start Checklist in main guide
-4. Run `./scripts/test_network.sh` to verify setup
-5. Schedule automated backups
-6. Set calendar reminders for maintenance
+2. Follow Quick Start Checklist above
+3. Run `./scripts/test_network.sh` to verify setup
+4. Schedule automated backups
+5. Set calendar reminders for maintenance
 
 **Estimated setup time**: 2-3 hours
 **Skill level**: Intermediate (clear instructions provided)

@@ -66,8 +66,6 @@ sudo smartctl -a /dev/disk2
 
 ### Format IronWolf Pro (Primary NAS Drive)
 
-**IMPORTANT**: See [FILE_SYSTEM_GUIDE.md](FILE_SYSTEM_GUIDE.md) for detailed file system comparison.
-
 **Recommended for your setup**: **APFS (Encrypted)**
 - Best data integrity for large files (50GB+)
 - Copy-on-Write + checksumming protects against corruption
@@ -91,7 +89,6 @@ sudo smartctl -a /dev/disk2
 - No checksumming - cannot detect corruption
 - No journaling - vulnerable to crashes
 - No data integrity features
-- See FILE_SYSTEM_GUIDE.md for details
 
 ### Format Backup Drive (NTFS for Cross-Platform)
 
