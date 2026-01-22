@@ -72,10 +72,9 @@ echo ""
     echo "=========================================="
 } >> "$LOG_FILE"
 
-# Extract duplicate file paths (handles both formats)
-# Format 1: "← DUPLICATE (move)" from reparse_duplicates.sh
-# Format 2: "← DUPLICATE (can move)" from find_duplicates.sh
-DUPLICATES=$(grep -E "← DUPLICATE \((can )?move\)" "$REPORT_FILE" | sed -E 's/^\[[^]]+\] (.+)  ← DUPLICATE \((can )?move\)$/\1/')
+# Extract duplicate file paths
+# Format: "← DUPLICATE (can move)" from both find_duplicates.sh and reparse_duplicates.sh
+DUPLICATES=$(grep "← DUPLICATE (can move)" "$REPORT_FILE" | sed -E 's/^\[[^]]+\] (.+)  ← DUPLICATE \(can move\)$/\1/')
 
 # Count total
 TOTAL=$(echo "$DUPLICATES" | grep -c .)
