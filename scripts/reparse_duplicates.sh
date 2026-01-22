@@ -75,9 +75,9 @@ echo ""
 
         # Print file
         if (duptype == "DUPTYPE_FIRST_OCCURRENCE") {
-            printf "[%s] %s  ← ORIGINAL (keep)\n", human_size, filename
+            printf "[%s] %s  ← ORIGINAL (keep this)\n", human_size, filename
         } else {
-            printf "[%s] %s  ← DUPLICATE (move)\n", human_size, filename
+            printf "[%s] %s  ← DUPLICATE (can move)\n", human_size, filename
         }
     }
 
