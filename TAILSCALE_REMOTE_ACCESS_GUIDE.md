@@ -278,19 +278,21 @@ Instead of remembering `100.101.102.103`, use a name:
 # Much easier to remember!
 ```
 
-### Enable Tailscale SSH (Optional)
+### Enable Tailscale SSH with tmux for Remote Sessions
 
-Tailscale can manage SSH authentication for you:
+Tailscale can manage SSH authentication for you, and combined with tmux, you can maintain persistent sessions that survive disconnections - perfect for accessing from iPhone.
+
+#### Step 1: Enable Tailscale SSH on Mac NAS
 
 **On Mac NAS**:
 ```bash
 # Enable Tailscale SSH
 tailscale up --ssh
 
-# Now you can SSH without passwords/keys
-# From any Tailscale device:
-ssh home-nas
-# Automatically authenticated!
+# Verify it's working
+tailscale status
+
+# You should see "Offers: ssh" or similar in the output
 ```
 
 **Benefits**:
@@ -298,6 +300,448 @@ ssh home-nas
 - No SSH key management
 - Works from any Tailscale device
 - More secure than password auth
+- Automatic authentication via Tailscale
+
+#### Step 2: Install and Configure tmux on Mac NAS
+
+tmux allows you to create persistent terminal sessions that stay alive even when you disconnect.
+
+**Install tmux**:
+```bash
+# Install via Homebrew
+brew install tmux
+
+# Verify installation
+tmux -V
+```
+
+**Create a basic tmux configuration** (optional but recommended):
+```bash
+# Create tmux config file
+cat > ~/.tmux.conf << 'EOF'
+# Set prefix to Ctrl-a (easier on mobile keyboards)
+unbind C-b
+set -g prefix C-a
+bind C-a send-prefix
+
+# Enable mouse support (helpful for mobile)
+set -g mouse on
+
+# Increase scrollback buffer
+set -g history-limit 10000
+
+# Start window numbering at 1
+set -g base-index 1
+
+# Renumber windows when one is closed
+set -g renumber-windows on
+
+# Status bar styling
+set -g status-style bg=black,fg=green
+set -g status-right '#[fg=cyan]%Y-%m-%d %H:%M'
+
+# Easy config reload
+bind r source-file ~/.tmux.conf \; display "Config reloaded!"
+EOF
+
+# Load the configuration
+tmux source ~/.tmux.conf
+```
+
+#### Step 3: Set Up Named tmux Sessions
+
+Create persistent sessions for different tasks:
+
+```bash
+# Create a "nas" session for NAS management
+tmux new-session -d -s nas
+
+# Create a "backup" session for running backups
+tmux new-session -d -s backup
+
+# Create a "monitoring" session for system monitoring
+tmux new-session -d -s monitoring
+
+# List all sessions
+tmux ls
+
+# Example output:
+# nas: 1 windows (created Thu Jan 25 10:30:00 2026)
+# backup: 1 windows (created Thu Jan 25 10:30:05 2026)
+# monitoring: 1 windows (created Thu Jan 25 10:30:10 2026)
+```
+
+#### Step 4: iPhone SSH Client Setup with Termius
+
+**Why Termius**:
+- Free tier is excellent for personal use
+- Beautiful, modern UI
+- Built-in SFTP for file transfers
+- Snippets feature for common commands
+- Port forwarding support
+- Syncs hosts across devices (with premium)
+- Works great with Tailscale
+
+**Install Termius**:
+```
+1. Open App Store on iPhone
+2. Search "Termius"
+3. Download and install (free)
+4. Open the app
+```
+
+**Setup your Mac NAS host in Termius**:
+
+```
+1. Open Termius app
+2. Tap "Hosts" at the bottom
+3. Tap "+" (top right) → "New Host"
+4. Configure:
+   Label: Mac NAS (or any name you like)
+
+   Address:
+   - Hostname: home-nas (if you set up MagicDNS)
+           OR: 100.101.102.103 (your Mac's Tailscale IP)
+   - Port: 22
+
+   Credentials:
+   - Username: your-mac-username (run 'whoami' on Mac to verify)
+   - Password: Leave empty
+   - Key: None (Tailscale handles authentication)
+
+   Advanced (optional):
+   - Startup snippet: tmux a || tmux new -s nas
+     (This automatically attaches to tmux on connection)
+
+5. Tap "Save" (top right)
+```
+
+**First connection**:
+```
+1. IMPORTANT: Ensure Tailscale app is running on iPhone first
+   - Open Tailscale app
+   - Verify status shows "Connected"
+   - You should see your Mac listed in devices
+
+2. Open Termius app
+3. Tap "Hosts"
+4. Tap your "Mac NAS" host
+5. You'll be connected automatically via Tailscale!
+6. Welcome to your Mac terminal on iPhone!
+```
+
+**Termius Pro Tips**:
+
+**Use Snippets for common commands**:
+```
+In Termius:
+1. Tap "Snippets" tab
+2. Tap "+" → "New Snippet"
+3. Create useful snippets like:
+
+Name: Attach NAS Session
+Command: tmux a -t nas
+
+Name: List Tmux Sessions
+Command: tmux ls
+
+Name: Docker Status
+Command: docker ps
+
+Name: Disk Space
+Command: df -h
+
+4. When connected, tap top bar → "Snippets" → Select snippet
+   Command runs instantly!
+```
+
+**Quick SFTP file transfers**:
+```
+1. When connected to host, tap top bar
+2. Tap "SFTP" button
+3. Browse your Mac's filesystem
+4. Tap files to download to iPhone
+5. Upload from iPhone: Tap "+" → Upload files
+```
+
+**Split screen for reference**:
+```
+1. Connect to Mac NAS
+2. Swipe up from bottom (iPad/newer iPhones)
+3. Drag Safari/Notes to side
+4. View documentation while typing commands!
+```
+
+**Other good SSH apps** (alternatives if you want to try):
+- **Blink Shell** ($20) - Best for power users, Mosh support
+- **Prompt** ($15) - Simple and clean interface
+
+#### Step 5: Using tmux from iPhone
+
+**Connect to existing session**:
+```bash
+# SSH into your Mac (via Termius/Blink/etc)
+# Then attach to a session:
+tmux attach -t nas
+
+# Or use shorthand:
+tmux a -t nas
+```
+
+**Essential tmux commands for mobile**:
+
+```bash
+# List all sessions
+tmux ls
+
+# Create new session with name
+tmux new -s session-name
+
+# Attach to existing session
+tmux attach -t session-name
+
+# Detach from session (keeps it running)
+Ctrl-a + d
+
+# Switch between sessions
+Ctrl-a + s    (shows session list, use arrow keys)
+
+# Create new window in session
+Ctrl-a + c
+
+# Switch between windows
+Ctrl-a + n    (next window)
+Ctrl-a + p    (previous window)
+Ctrl-a + 0-9  (jump to window number)
+
+# Split pane horizontally
+Ctrl-a + "
+
+# Split pane vertically
+Ctrl-a + %
+
+# Navigate between panes
+Ctrl-a + arrow keys
+
+# Kill current session
+tmux kill-session -t session-name
+```
+
+**Mobile-friendly workflow**:
+
+```bash
+# 1. SSH from iPhone
+ssh home-nas
+
+# 2. Attach to your persistent session
+tmux a -t nas
+
+# 3. Do your work (run scripts, check logs, etc.)
+
+# 4. When done, detach (DON'T close - just detach!)
+Ctrl-a + d
+
+# 5. Exit SSH
+exit
+
+# Session keeps running! Next time you connect:
+ssh home-nas
+tmux a -t nas
+# You're right back where you left off!
+```
+
+#### Step 6: Practical Use Cases
+
+**Running long backup tasks**:
+```bash
+# SSH into Mac from iPhone
+ssh home-nas
+
+# Attach to backup session
+tmux a -t backup
+
+# Start your backup script
+./scripts/backup-media.sh
+
+# Detach and let it run
+Ctrl-a + d
+
+# Close SSH - backup continues!
+# Later, reattach to check progress
+```
+
+**Monitoring system health**:
+```bash
+# Create a monitoring session that runs htop
+tmux new -s monitor
+htop
+
+# Detach
+Ctrl-a + d
+
+# Anytime you want to check system resources:
+tmux a -t monitor
+```
+
+**Managing Docker containers**:
+```bash
+# Create docker session
+tmux new -s docker
+
+# Watch container status
+watch docker ps
+
+# Or check logs
+docker-compose logs -f immich
+
+# Detach when done
+Ctrl-a + d
+```
+
+#### Step 7: Auto-start Important Sessions (Optional)
+
+Create a startup script to ensure your important tmux sessions are always running:
+
+```bash
+# Create startup script
+cat > ~/start-tmux-sessions.sh << 'EOF'
+#!/bin/bash
+
+# Function to create session if it doesn't exist
+create_session_if_missing() {
+    local session_name=$1
+    if ! tmux has-session -t "$session_name" 2>/dev/null; then
+        tmux new-session -d -s "$session_name"
+        echo "Created tmux session: $session_name"
+    fi
+}
+
+# Create essential sessions
+create_session_if_missing "nas"
+create_session_if_missing "backup"
+create_session_if_missing "monitoring"
+
+echo "All tmux sessions ready!"
+EOF
+
+# Make it executable
+chmod +x ~/start-tmux-sessions.sh
+
+# Run it now
+~/start-tmux-sessions.sh
+
+# Optional: Run on system startup
+# Add to a launchd plist or run on login
+```
+
+#### Troubleshooting Tailscale SSH
+
+**Problem: SSH connection refused**
+
+```bash
+# On Mac NAS, verify SSH is enabled via Tailscale
+tailscale status
+
+# Should show something like:
+# Offers: ssh
+
+# If not, re-enable:
+tailscale up --ssh
+
+# Check if SSH port is listening
+sudo lsof -i :22
+
+# Ensure Remote Login is enabled (System Settings)
+sudo systemsetup -getremotelogin
+# Should show: "Remote Login: On"
+
+# If off, enable it:
+sudo systemsetup -setremotelogin on
+```
+
+**Problem: Authentication fails from iPhone**
+
+```bash
+# Common issues:
+# 1. Tailscale not running on iPhone
+#    → Open Tailscale app, ensure "Connected"
+
+# 2. Not signed into same Tailscale account
+#    → Sign out and sign back in with same account
+
+# 3. Mac's firewall blocking SSH
+#    → System Settings → Network → Firewall
+#    → Add SSH to allowed apps
+```
+
+**Problem: tmux session disappeared**
+
+```bash
+# Sessions disappear if Mac restarts
+# Check tmux server status:
+tmux ls
+
+# If "no server running", create sessions again:
+~/start-tmux-sessions.sh
+
+# To prevent data loss, save work before detaching!
+```
+
+**Problem: Typing lag on iPhone**
+
+```bash
+# Use Mosh instead of SSH (if using Blink Shell)
+# Mosh is better for mobile/cellular connections
+brew install mosh
+
+# Enable Mosh in Tailscale
+tailscale up --ssh
+
+# In Blink Shell, connect using:
+mosh home-nas
+
+# Mosh benefits:
+# - Handles network switching (Wi-Fi to cellular)
+# - Lower latency
+# - Works with intermittent connections
+```
+
+#### Quick Reference Card for iPhone
+
+**Save this for quick access**:
+
+```bash
+# Connect
+ssh home-nas
+
+# List sessions
+tmux ls
+
+# Attach to session
+tmux a -t nas
+
+# Detach (keeps session alive)
+Ctrl-a d
+
+# Create new window
+Ctrl-a c
+
+# Next/previous window
+Ctrl-a n
+Ctrl-a p
+
+# Exit SSH (leaves sessions running)
+exit
+```
+
+**Pro Tips for Mobile SSH**:
+1. Use tmux ALWAYS - never run commands directly, always in a session
+2. Name sessions descriptively (not "session1", but "docker-logs")
+3. Keep one session per task type
+4. Detach, don't kill - your work stays alive
+5. Enable mouse mode in tmux for easier navigation on touchscreen
+6. Use external keyboard with iPhone for better experience (Magic Keyboard, etc.)
+7. Consider iPad + keyboard for serious remote work
 
 ### Set Up Subnet Routing (Advanced)
 
