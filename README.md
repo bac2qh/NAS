@@ -32,6 +32,12 @@ Complete guide for building a home NAS using M1 MacBook Pro with external drives
    - Troubleshooting remote access issues
    - Security best practices
 
+4. **[CLAWDBOT_SETUP_GUIDE.md](CLAWDBOT_SETUP_GUIDE.md)** - Personal AI assistant
+   - Telegram bot with voice message support
+   - Personal knowledge base (remember & query)
+   - Tailscale integration for remote access
+   - Voice transcription setup (Whisper, Groq, OpenAI)
+
 ## 🛠️ Utility Scripts
 
 All scripts are located in the `scripts/` directory.
