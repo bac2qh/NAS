@@ -21,6 +21,89 @@ This guide sets up Clawdbot as a personal knowledge base that you can:
 - Tailscale installed and authenticated
 - NordVPN with split tunneling for Tailscale subnet
 
+## Cost Estimation
+
+Anthropic provides only the LLM (Claude). Voice transcription requires a separate provider.
+
+### Claude API Pricing (Anthropic)
+
+| Model | Input | Output | Best For |
+|-------|-------|--------|----------|
+| **Opus 4.5** | $15/MTok | $75/MTok | Complex reasoning, deep analysis |
+| **Sonnet 4** | $3/MTok | $15/MTok | Daily use, good balance |
+
+*MTok = million tokens. 1 MTok ≈ 750,000 words.*
+
+### Voice-to-Text (Transcription)
+
+| Provider | Cost | Notes |
+|----------|------|-------|
+| **Local Whisper** | Free | Runs on your M1, private, no API needed |
+| OpenAI Whisper | $0.006/min | Most reliable cloud option |
+| Groq Whisper | Free tier available | Fast, generous free tier |
+
+### Text-to-Voice (TTS) - Optional
+
+Clawdbot responds in text by default. TTS is optional if you want spoken responses.
+
+| Provider | Cost | Notes |
+|----------|------|-------|
+| OpenAI TTS | $0.015/1K chars | Good quality |
+| ElevenLabs | ~$0.30/1K chars | Best quality, expensive |
+
+### Monthly Cost Scenarios
+
+#### Light Use (~10 interactions/day)
+Personal notes, quick queries, occasional voice messages.
+
+| Component | Usage | Cost |
+|-----------|-------|------|
+| Sonnet 4 input | ~500K tokens | $1.50 |
+| Sonnet 4 output | ~200K tokens | $3.00 |
+| Local Whisper | unlimited | $0.00 |
+| **Total** | | **~$5/mo** |
+
+#### Moderate Use (~30 interactions/day)
+Daily assistant, meeting notes, regular knowledge queries.
+
+| Component | Usage | Cost |
+|-----------|-------|------|
+| Sonnet 4 input | ~2M tokens | $6.00 |
+| Sonnet 4 output | ~800K tokens | $12.00 |
+| Local Whisper | unlimited | $0.00 |
+| **Total** | | **~$18/mo** |
+
+#### Heavy Use with Opus 4.5
+Complex reasoning, long conversations, deep analysis.
+
+| Component | Usage | Cost |
+|-----------|-------|------|
+| Opus 4.5 input | ~2M tokens | $30.00 |
+| Opus 4.5 output | ~800K tokens | $60.00 |
+| OpenAI Whisper | ~150 min | $0.90 |
+| **Total** | | **~$91/mo** |
+
+### Subscription Alternative (OAuth)
+
+Instead of pay-per-use API, use your Claude subscription:
+
+| Plan | Cost | Included |
+|------|------|----------|
+| **Claude Pro** | $20/mo | ~45 Opus messages/day (rate limited) |
+| **Claude Max** | $100/mo | ~225 Opus messages/day |
+
+Clawdbot supports OAuth login to Claude Pro/Max subscriptions. Better for heavy, bursty usage where you might hit API costs quickly.
+
+### Recommendation
+
+**Start with:**
+- **Sonnet 4** - 5x cheaper than Opus, handles most knowledge base tasks well
+- **Local Whisper** - Free, private, M1 handles it efficiently
+
+**Estimated cost: $5-20/month** for typical personal use.
+
+Upgrade to Opus 4.5 only if you need complex multi-step reasoning or find Sonnet insufficient.
+
 ## Installation
 
 ### Step 1: Install Node.js 22
