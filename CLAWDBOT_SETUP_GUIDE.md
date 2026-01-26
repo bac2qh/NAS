@@ -556,6 +556,266 @@ Here's a full `~/.clawdbot/clawdbot.json` for your setup:
 }
 ```
 
+## Security Lockdown (Note-Taking Only)
+
+By default, Clawdbot has access to bash, browser, and other powerful tools. For a secure knowledge base that can only take notes, lock it down.
+
+### Minimal Permissions Config
+
+Add to your `~/.clawdbot/clawdbot.json`:
+
+```json5
+{
+  // ... existing config ...
+
+  // Restrict to workspace only
+  agents: {
+    defaults: {
+      workspace: "~/clawd",
+      workspaceOnly: true  // Cannot access files outside workspace
+    }
+  },
+
+  // Lock down tools
+  tools: {
+    deny: [
+      "bash",           // No shell commands
+      "process",        // No process management
+      "browser",        // No web browsing
+      "canvas",         // No canvas/UI control
+      "cron",           // No scheduled tasks
+      "discord",        // No Discord actions
+      "gateway",        // No gateway control
+      "nodes",          // No node/device control
+      "sessions_send",  // No cross-session messaging
+      "sessions_spawn"  // No spawning new sessions
+    ],
+    allow: [
+      "read",           // Read files (for retrieval)
+      "write",          // Write files (for storing notes)
+      "edit",           // Edit files
+      "glob",           // Find files
+      "grep"            // Search file contents
+    ]
+  }
+}
+```
+
+### What This Allows
+
+| Action | Allowed? |
+|--------|----------|
+| "Remember the wifi password" | Yes |
+| "What did I save about project X?" | Yes |
+| "Search my notes for meetings" | Yes |
+| "Run `ls -la`" | No |
+| "Open a browser" | No |
+| "Execute this script" | No |
+
+### Verify Security
+
+```bash
+clawdbot doctor
+clawdbot security audit --deep
+```
+
+## Calendar & Reminders Integration
+
+Integrate with macOS Calendar and Reminders using Shortcuts. This approach is secure because you pre-define exactly what actions are allowed.
+
+### Step 1: Create Shortcuts
+
+Open **Shortcuts.app** and create these shortcuts:
+
+#### Shortcut: "Clawd Add Reminder"
+
+1. New Shortcut → Name it "Clawd Add Reminder"
+2. Add action: **Receive** → Input: Text
+3. Add action: **Add New Reminder**
+   - List: Reminders (or your preferred list)
+   - Title: Select "Shortcut Input"
+4. Save
+
+#### Shortcut: "Clawd Add Event"
+
+1. New Shortcut → Name it "Clawd Add Event"
+2. Add action: **Receive** → Input: Text
+3. Add action: **Split Text** → By: New Lines
+4. Add action: **Add New Event**
+   - Calendar: Your calendar
+   - Title: First item from Split Text
+   - Start Date: Ask Each Time (or parse from input)
+5. Save
+
+#### Shortcut: "Clawd List Today"
+
+1. New Shortcut → Name it "Clawd List Today"
+2. Add action: **Find Calendar Events Where**
+   - Start Date is Today
+3. Add action: **Repeat with Each** item
+   - Get: Title, Start Date
+   - Add to variable "Events"
+4. Add action: **Stop and Output** → Events variable
+5. Save
+
+#### Shortcut: "Clawd List Reminders"
+
+1. New Shortcut → Name it "Clawd List Reminders"
+2. Add action: **Find Reminders Where**
+   - Is Not Completed
+3. Add action: **Stop and Output** → Reminders
+4. Save
+
+### Step 2: Create Calendar Skill
+
+Create `~/clawd/skills/calendar/SKILL.md`:
+
+```markdown
+---
+name: calendar
+description: Calendar and Reminders via macOS Shortcuts
+user-invocable: true
+---
+
+# Calendar & Reminders
+
+Manage Calendar and Reminders using these Shortcuts commands.
+
+## Add a Reminder
+
+When the user asks to remind them of something:
+
+```bash
+echo "Buy groceries tomorrow" | shortcuts run "Clawd Add Reminder"
+```
+
+## Add a Calendar Event
+
+When the user wants to schedule something:
+
+```bash
+echo "Team meeting
+2024-02-01 14:00" | shortcuts run "Clawd Add Event"
+```
+
+Format: First line is title, second line is date/time.
+
+## List Today's Events
+
+When the user asks what's on their calendar:
+
+```bash
+shortcuts run "Clawd List Today"
+```
+
+## List Pending Reminders
+
+When the user asks about their reminders:
+
+```bash
+shortcuts run "Clawd List Reminders"
+```
+```
+
+### Step 3: Create the Directory
+
+```bash
+mkdir -p ~/clawd/skills/calendar
+```
+
+### Step 4: Update Config for Calendar Access
+
+Modify your config to allow only Shortcuts execution:
+
+```json5
+{
+  agents: {
+    defaults: {
+      workspace: "~/clawd",
+      workspaceOnly: true
+    }
+  },
+
+  tools: {
+    deny: [
+      "process",
+      "browser",
+      "canvas",
+      "cron",
+      "discord",
+      "gateway",
+      "nodes"
+    ],
+    allow: [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash"  // Needed for shortcuts
+    ]
+  },
+
+  // Only allow Clawd-prefixed shortcuts
+  exec: {
+    mode: "allowlist",
+    allowlist: [
+      "shortcuts run \"Clawd *",
+      "echo *| shortcuts run \"Clawd *"
+    ]
+  }
+}
+```
+
+### Step 5: Test It
+
+```bash
+# Test shortcuts work from terminal first
+shortcuts run "Clawd List Reminders"
+shortcuts run "Clawd List Today"
+echo "Test reminder" | shortcuts run "Clawd Add Reminder"
+```
+
+### Example Interactions
+
+**Adding a reminder:**
+```
+You: Remind me to call mom tomorrow
+Bot: Created reminder "Call mom tomorrow"
+```
+
+**Checking calendar:**
+```
+You: What's on my calendar today?
+Bot: Today's events:
+     - 10:00 AM: Team standup
+     - 2:00 PM: Dentist appointment
+     - 5:00 PM: Gym
+```
+
+**Adding an event:**
+```
+You: Schedule a meeting with John next Tuesday at 3pm
+Bot: Added "Meeting with John" to your calendar for Tuesday, Feb 4 at 3:00 PM
+```
+
+**Checking reminders:**
+```
+You: What are my pending reminders?
+Bot: Pending reminders:
+     - Buy groceries
+     - Call mom tomorrow
+     - Renew car insurance
+```
+
+### Security Note
+
+The exec allowlist ensures Clawdbot can ONLY run shortcuts prefixed with "Clawd ". It cannot:
+- Run arbitrary shell commands
+- Execute scripts
+- Access other shortcuts
+- Modify system settings
+
 ## Autostart on Boot
 
 The daemon should already autostart. To verify:
