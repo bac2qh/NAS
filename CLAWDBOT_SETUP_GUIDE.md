@@ -10,12 +10,28 @@ This guide sets up Clawdbot as a personal knowledge base that you can:
 - Query your stored knowledge using natural language
 - Access remotely via your existing Tailscale setup
 
+## Deployment Options
+
+| Option | Security | Complexity | Best For |
+|--------|----------|------------|----------|
+| **Direct Install** | Medium | Simple | Testing, trusted environments |
+| **Lume VM** (recommended) | High | Moderate | Production, isolation, untrusted code |
+
+This guide covers both options. **Lume VM is recommended** for running Clawdbot with full tool access while keeping your host system isolated.
+
 ## Prerequisites
 
 ### Required
-- Node.js >= 22
 - Telegram account
 - Claude API key (Anthropic) OR Claude Pro/Max subscription (OAuth)
+
+### For Direct Install
+- Node.js >= 22
+
+### For Lume VM (Recommended)
+- [Lume](https://github.com/trycombine/lume) - VM manager for Apple Silicon
+- 4GB+ RAM available for VM
+- 20GB+ disk space for VM
 
 ### Already Configured (from your NAS setup)
 - Tailscale installed and authenticated
@@ -104,9 +120,216 @@ Clawdbot supports OAuth login to Claude Pro/Max subscriptions. Better for heavy,
 
 Upgrade to Opus 4.5 only if you need complex multi-step reasoning or find Sonnet insufficient.
 
-## Installation
+---
 
-### Step 1: Install Node.js 22
+## Option A: Lume VM Installation (Recommended)
+
+Running Clawdbot in a VM provides full isolation - if you give the agent bash/browser access, it can only affect the VM, not your host system.
+
+### Step 1: Install Lume
+
+```bash
+# Install via Homebrew
+brew install lume
+
+# Start the lume daemon
+lume run
+
+# Verify installation
+lume --version
+```
+
+### Step 2: Create a macOS VM
+
+```bash
+# Pull the latest macOS image
+lume pull macos-sequoia-vanilla
+
+# Create a VM named "clawdbot"
+# Uses 4 CPU cores, 8GB RAM, 50GB disk
+lume create clawdbot \
+  --image macos-sequoia-vanilla \
+  --cpu 4 \
+  --memory 8192 \
+  --disk 50G
+
+# Start the VM
+lume start clawdbot
+```
+
+**Alternative: Linux VM** (lighter weight)
+
+```bash
+# Pull Ubuntu 24.04
+lume pull ubuntu-24.04
+
+# Create Linux VM
+lume create clawdbot \
+  --image ubuntu-24.04 \
+  --cpu 2 \
+  --memory 4096 \
+  --disk 30G
+
+lume start clawdbot
+```
+
+### Step 3: Connect to the VM
+
+```bash
+# SSH into the VM
+lume ssh clawdbot
+
+# Or get the VM's IP address
+lume ip clawdbot
+```
+
+### Step 4: Install Dependencies Inside VM
+
+**For macOS VM:**
+
+```bash
+# Install Homebrew (if not present)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Node.js 22
+brew install node@22
+brew link node@22
+
+# Install Tailscale for remote access
+brew install tailscale
+```
+
+**For Linux VM:**
+
+```bash
+# Update packages
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install Tailscale
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+### Step 5: Install Clawdbot Inside VM
+
+```bash
+# SSH into VM if not already
+lume ssh clawdbot
+
+# Install Clawdbot
+curl -fsSL https://clawd.bot/install.sh | bash
+
+# Run the onboarding wizard
+clawdbot onboard --install-daemon
+```
+
+The wizard will guide you through the same setup as direct install (see Configuration sections below).
+
+### Step 6: Configure Tailscale in VM
+
+The VM needs its own Tailscale connection for remote access:
+
+```bash
+# Inside the VM
+sudo tailscale up --hostname=clawdbot-vm
+
+# Verify connection
+tailscale status
+```
+
+Your VM will appear as `clawdbot-vm` in your tailnet, accessible from any device.
+
+### Step 7: Autostart VM on Host Boot
+
+On your **host Mac** (not inside VM), create a launchd service:
+
+```bash
+# Create the plist
+cat > ~/Library/LaunchAgents/com.lume.clawdbot.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lume.clawdbot</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/lume</string>
+        <string>start</string>
+        <string>clawdbot</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/tmp/lume-clawdbot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/lume-clawdbot.err</string>
+</dict>
+</plist>
+EOF
+
+# Load the service
+launchctl load ~/Library/LaunchAgents/com.lume.clawdbot.plist
+```
+
+### Managing the Lume VM
+
+```bash
+# Check VM status
+lume list
+
+# Stop the VM
+lume stop clawdbot
+
+# Start the VM
+lume start clawdbot
+
+# SSH into VM
+lume ssh clawdbot
+
+# View VM console (GUI)
+lume console clawdbot
+
+# Delete VM (destructive!)
+lume delete clawdbot
+```
+
+### Shared Folders (Optional)
+
+Mount a host folder into the VM for sharing files:
+
+```bash
+# Create a shared folder
+mkdir -p ~/clawd-shared
+
+# Mount it in the VM (run on host)
+lume mount clawdbot ~/clawd-shared /mnt/shared
+```
+
+Inside the VM, access at `/mnt/shared`.
+
+### VM Security Benefits
+
+| Risk | Direct Install | Lume VM |
+|------|----------------|---------|
+| Bash commands affect host | Yes | No |
+| Can access host files | Yes | No |
+| Network isolated | No | Optional |
+| Easy to reset if compromised | Rebuild entire NAS | Just recreate VM |
+
+---
+
+## Option B: Direct Installation
+
+If you prefer a simpler setup without VM isolation, install directly on the host.
+
+### Step 1: Install Node.js 22 (Direct Install Only)
 
 ```bash
 # Check current version
@@ -144,6 +367,12 @@ The wizard will guide you through:
 2. **Authentication**: Choose API key or OAuth (see below)
 3. **Channels**: Select Telegram
 4. **Daemon**: Yes, install as background service
+
+---
+
+## Configuration (Both Options)
+
+The following sections apply whether you're running Clawdbot in a Lume VM or directly on the host. If using a VM, run these commands inside the VM (`lume ssh clawdbot`).
 
 ## Authentication Setup
 
@@ -560,6 +789,8 @@ Here's a full `~/.clawdbot/clawdbot.json` for your setup:
 
 By default, Clawdbot has access to bash, browser, and other powerful tools. For a secure knowledge base that can only take notes, lock it down.
 
+> **Lume VM Users**: If running in a VM, you may not need these restrictions. The VM itself provides isolation - even if the agent runs `rm -rf /`, it only affects the VM. You can enable full bash/browser access and rely on VM isolation for security. Skip this section if you want full agent capabilities within the VM sandbox.
+
 ### Minimal Permissions Config
 
 Add to your `~/.clawdbot/clawdbot.json`:
@@ -882,6 +1113,51 @@ clawdbot doctor --fix
 lsof -i :18789
 ```
 
+### Lume VM Issues
+
+**VM won't start:**
+```bash
+# Check lume daemon is running
+lume list
+
+# If lume daemon died, restart it
+lume run
+
+# Check VM logs
+lume logs clawdbot
+```
+
+**Can't SSH into VM:**
+```bash
+# Get VM IP address directly
+lume ip clawdbot
+
+# Try direct SSH (default user varies by image)
+ssh admin@$(lume ip clawdbot)  # macOS
+ssh ubuntu@$(lume ip clawdbot) # Ubuntu
+```
+
+**VM networking issues:**
+```bash
+# Inside VM, check network
+ping 8.8.8.8
+curl -I https://api.anthropic.com
+
+# Restart VM networking
+lume stop clawdbot && lume start clawdbot
+```
+
+**VM disk full:**
+```bash
+# Check disk space inside VM
+df -h
+
+# Resize disk (from host)
+lume stop clawdbot
+lume resize clawdbot --disk 100G
+lume start clawdbot
+```
+
 ## Security Notes
 
 1. **Token Security**: Never commit `clawdbot.json` with tokens to git. Use environment variables instead.
@@ -922,6 +1198,8 @@ clawdbot status --all
 
 ## Quick Reference
 
+### Clawdbot Commands
+
 | Task | Command |
 |------|---------|
 | Start gateway | `clawdbot gateway start` |
@@ -933,8 +1211,22 @@ clawdbot status --all
 | Open dashboard | `clawdbot dashboard` |
 | Security audit | `clawdbot security audit --deep` |
 
+### Lume VM Commands (if using VM)
+
+| Task | Command |
+|------|---------|
+| List VMs | `lume list` |
+| Start VM | `lume start clawdbot` |
+| Stop VM | `lume stop clawdbot` |
+| SSH into VM | `lume ssh clawdbot` |
+| Get VM IP | `lume ip clawdbot` |
+| View VM console | `lume console clawdbot` |
+| View VM logs | `lume logs clawdbot` |
+| Delete VM | `lume delete clawdbot` |
+
 ## Resources
 
+### Clawdbot
 - [Official Documentation](https://docs.clawd.bot)
 - [Getting Started](https://docs.clawd.bot/start/getting-started)
 - [Telegram Channel](https://docs.clawd.bot/channels/telegram)
@@ -943,3 +1235,7 @@ clawdbot status --all
 - [Configuration Reference](https://docs.clawd.bot/gateway/configuration)
 - [Discord Community](https://discord.gg/clawd)
 - [GitHub Repository](https://github.com/clawdbot/clawdbot)
+
+### Lume (VM Manager)
+- [Lume GitHub](https://github.com/trycombine/lume)
+- [Lume Documentation](https://docs.lume.dev)
